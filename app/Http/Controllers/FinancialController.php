@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use App\Models\Sale;
 use App\Models\ExchangeRate;
 use App\Models\Customer;
+use App\Models\Product;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
@@ -87,13 +88,46 @@ class FinancialController extends Controller
             'rates' => 'required|array',
             'rates.*.currency_code' => 'required|string',
             'rates.*.rate' => 'required|numeric|min:0',
+            // Este campo viene del checkbox en el frontend
+            'freeze_cop_prices' => 'boolean' 
         ]);
 
+        // 1. Capturamos la tasa ANTERIOR de COP antes de hacer cualquier cambio
+        $oldCopRate = ExchangeRate::where('currency_code', 'COP')->value('rate');
+
+        // 2. Actualizamos las tasas en la base de datos
         foreach ($validated['rates'] as $rateData) {
             ExchangeRate::where('currency_code', $rateData['currency_code'])
                 ->update(['rate' => $rateData['rate']]);
         }
 
-        return redirect()->back()->with('success', 'Tasas de cambio actualizadas.');
+        // 3. LÓGICA DE REAJUSTE DE PRECIOS
+        // Buscamos cuál es la NUEVA tasa de COP que acabamos de recibir
+        $newCopRate = collect($validated['rates'])->firstWhere('currency_code', 'COP')['rate'] ?? null;
+
+        // Solo ejecutamos si:
+        // A) El usuario marcó el checkbox "freeze_cop_prices"
+        // B) Tenemos tasa vieja y tasa nueva
+        // C) La tasa realmente cambió (no es igual a la anterior)
+        if ($request->input('freeze_cop_prices') && $oldCopRate && $newCopRate && $oldCopRate != $newCopRate) {
+            
+            // Calculamos el factor. 
+            // Si Old=4000 y New=3650 -> Factor = 1.09 (El precio USD subirá)
+            // Si Old=3650 y New=4000 -> Factor = 0.91 (El precio USD bajará)
+            $adjustmentFactor = $oldCopRate / $newCopRate;
+
+            // Actualizamos TODOS los productos de una sola vez
+            // Multiplicamos el precio actual en USD por el factor
+            Product::query()->update([
+                'selling_price' => DB::raw("selling_price * $adjustmentFactor")
+            ]);
+        }
+
+        $message = 'Tasas actualizadas.';
+        if ($request->input('freeze_cop_prices') && $oldCopRate != $newCopRate) {
+            $message .= ' Los precios base en USD se han ajustado para mantener el valor en COP.';
+        }
+
+        return redirect()->back()->with('success', $message);
     }
 }
