@@ -23,6 +23,40 @@ class SalesController extends Controller
         ]);
     }
 
+    public function addPayment(Request $request, Sale $sale)
+    {
+        $validated = $request->validate([
+            'amount' => 'required|numeric|min:0.01',
+            'currency' => 'required|in:COP,USD,VES',
+        ]);
+
+        $amount = $validated['amount'];
+        $currency = $validated['currency'];
+
+        // 1. Actualizar el monto pagado según la moneda
+        if ($currency === 'COP') {
+            $sale->paid_amount_cop += $amount;
+        } elseif ($currency === 'USD') {
+            $sale->paid_amount_usd += $amount;
+        } elseif ($currency === 'VES') {
+            $sale->paid_amount_ves += $amount;
+        }
+
+        // 2. Verificar si la deuda se ha saldado
+        // Usamos una pequeña tolerancia para evitar problemas de decimales
+        $isPaidCOP = $sale->paid_amount_cop >= ($sale->total_cop - 50); 
+        $isPaidUSD = $sale->paid_amount_usd >= ($sale->total_usd - 0.1);
+
+        if ($isPaidCOP || $isPaidUSD) {
+            // Cambiamos el estado a 'completed' para que salga de la lista de pendientes
+            $sale->status = 'completed';
+        }
+
+        $sale->save();
+
+        return redirect()->back()->with('success', 'Abono registrado correctamente.');
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([

@@ -136,7 +136,8 @@ export default function PosIndex({
         return {
             usd: usd,
             ves: usd * (exchangeRates.VES || 0),
-            cop: usd * (exchangeRates.COP || 0),
+            // AQUI ESTA LA CLAVE: Math.round() para forzar el entero más cercano (2000 en vez de 1999.99)
+            cop: Math.round(usd * (exchangeRates.COP || 0)),
         };
     }, [cart, exchangeRates]);
 
@@ -257,8 +258,12 @@ export default function PosIndex({
                                 {item.name}
                             </div>
                             <div className="mt-0.5 text-[10px] font-bold tracking-tight text-muted-foreground uppercase">
-                                ${Number(item.selling_price).toFixed(2)} /
-                                UNIDAD
+                                {/* Visualizacion en el item del carrito redondeada */}
+                                {Math.round(
+                                    item.selling_price *
+                                        (exchangeRates.COP || 0),
+                                ).toLocaleString()}{' '}
+                                COP / UNIDAD
                             </div>
                         </div>
                         <div className="flex flex-col items-end gap-2">
@@ -285,10 +290,13 @@ export default function PosIndex({
                             </div>
                             <div className="flex items-center gap-2">
                                 <div className="text-sm font-black text-indigo-600 dark:text-indigo-400">
+                                    {/* Calculo visual del subtotal por item redondeado */}
                                     $
-                                    {(
-                                        item.selling_price * item.quantity
-                                    ).toFixed(2)}
+                                    {Math.round(
+                                        item.selling_price *
+                                            item.quantity *
+                                            (exchangeRates.COP || 0),
+                                    ).toLocaleString()}
                                 </div>
                                 <button
                                     className="text-zinc-300 transition-colors hover:text-red-500"
@@ -476,9 +484,11 @@ export default function PosIndex({
                                     <CardContent className="mt-auto flex flex-col p-4 pt-0">
                                         <div className="mt-2 flex flex-col gap-0.5">
                                             <div className="text-lg leading-tight font-black text-emerald-600 dark:text-emerald-400">
-                                                {(
+                                                {/* Visualizacion en el catalogo redondeada */}
+                                                {Math.round(
                                                     product.selling_price *
-                                                    (exchangeRates.COP || 0)
+                                                        (exchangeRates.COP ||
+                                                            0),
                                                 ).toLocaleString(undefined, {
                                                     maximumFractionDigits: 0,
                                                 })}

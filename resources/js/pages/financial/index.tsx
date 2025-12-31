@@ -1,9 +1,11 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
 import { type BreadcrumbItem } from '@/types';
 import { Head, useForm } from '@inertiajs/react';
 import {
     ArrowUpRight,
+    Banknote, // <--- NUEVO IMPORT
     Clock,
     History as HistoryIcon,
     LayoutDashboard,
@@ -16,13 +18,15 @@ import {
 import { useState } from 'react';
 import { toast } from 'sonner';
 
+import { DebtPaymentModal } from '@/components/financial/debt-payment-modal'; // <--- NUEVO IMPORT
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox'; // Importado
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label'; // Importado
+import { Label } from '@/components/ui/label';
 
+// ... (Las interfaces ExchangeRate, SaleItem se mantienen igual)
 interface ExchangeRate {
     id: number;
     currency_code: string;
@@ -55,6 +59,7 @@ interface Sale {
     items: SaleItem[];
 }
 
+// ... (Resto de interfaces Debtor, Summary igual)
 interface Debtor {
     customer_id: number;
     customer_name: string;
@@ -100,22 +105,33 @@ export default function FinancialIndex({
     const [searchTerm, setSearchTerm] = useState('');
     const [activeTab, setActiveTab] = useState<'sales' | 'debtors'>('sales');
 
+    // --- NUEVO ESTADO PARA EL MODAL DE PAGO ---
+    const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+    const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+
+    const handleOpenPayment = (sale: Sale) => {
+        setSelectedSale(sale);
+        setIsPaymentModalOpen(true);
+    };
+    // -------------------------------------------
+
     // Exchange rates form
     const { data, setData, post, processing } = useForm({
         rates: exchangeRates.map((r) => ({
             currency_code: r.currency_code,
-            rate: r.rate,
+            rate:
+                r.currency_code === 'COP'
+                    ? Math.round(Number(r.rate))
+                    : Number(r.rate),
         })),
-        freeze_cop_prices: false, // Nuevo estado para el checkbox
+        freeze_cop_prices: false,
     });
 
     const handleRateChange = (code: string, value: string) => {
         const newRates = data.rates.map((r) =>
-            r.currency_code === code
-                ? { ...r, rate: parseFloat(value) || 0 }
-                : r,
+            r.currency_code === code ? { ...r, rate: value } : r,
         );
-        setData('rates', newRates);
+        setData('rates', newRates as any);
     };
 
     const submitRates = (e: React.FormEvent) => {
@@ -135,7 +151,6 @@ export default function FinancialIndex({
         return matchesCustomer || matchesId;
     });
 
-    // Helper para formatear moneda sin decimales (COP/VES)
     const formatCurrency = (
         amount: number,
         currency: 'COP' | 'VES' | 'USD',
@@ -143,7 +158,6 @@ export default function FinancialIndex({
         if (currency === 'USD') {
             return `$${Number(amount).toFixed(2)}`;
         }
-        // Para COP y VES quitamos los decimales
         return Number(amount).toLocaleString('es-CO', {
             maximumFractionDigits: 0,
         });
@@ -166,12 +180,13 @@ export default function FinancialIndex({
                         </p>
                     </div>
 
-                    {/* Formulario de Tasas Ajustado para Móvil */}
+                    {/* Formulario de Tasas */}
                     <div className="w-full rounded-xl border border-dashed border-zinc-200 bg-zinc-50 p-4 xl:w-auto dark:border-zinc-800 dark:bg-zinc-900/50">
                         <form
                             onSubmit={submitRates}
                             className="flex flex-col gap-4 md:flex-row md:items-center md:gap-6"
                         >
+                            {/* ... (Contenido del formulario igual) ... */}
                             <div className="flex items-center gap-2 border-b border-zinc-200 pb-2 md:border-r md:border-b-0 md:pr-4 md:pb-0 dark:border-zinc-800">
                                 <RefreshCw className="animate-spin-slow h-3.5 w-3.5 text-muted-foreground" />
                                 <span className="text-[10px] font-bold tracking-widest whitespace-nowrap text-muted-foreground uppercase">
@@ -190,7 +205,11 @@ export default function FinancialIndex({
                                         </span>
                                         <input
                                             type="number"
-                                            step="0.01"
+                                            step={
+                                                rate.currency_code === 'COP'
+                                                    ? '1'
+                                                    : '0.01'
+                                            }
                                             value={rate.rate}
                                             onChange={(e) =>
                                                 handleRateChange(
@@ -203,7 +222,6 @@ export default function FinancialIndex({
                                     </div>
                                 ))}
 
-                                {/* Checkbox para congelar precios */}
                                 <div className="col-span-2 flex items-center gap-2 sm:col-span-1 sm:w-auto">
                                     <Checkbox
                                         id="freeze"
@@ -237,9 +255,9 @@ export default function FinancialIndex({
                     </div>
                 </div>
 
-                {/* Dashboard Cards - REORGANIZED */}
+                {/* Dashboard Cards (Se mantienen igual, las omito para ahorrar espacio visual, pero van aquí) */}
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                    {/* Patrimony / Net Worth - HIGHLIGHTED */}
+                    {/* ... Cards de Patrimonio, Deudas, etc ... */}
                     <Card className="relative overflow-hidden border-none bg-gradient-to-br from-indigo-600 to-indigo-700 text-white shadow-lg lg:col-span-1">
                         <CardHeader className="pb-2">
                             <CardTitle className="text-[10px] font-black tracking-widest text-indigo-200 uppercase opacity-80">
@@ -352,7 +370,7 @@ export default function FinancialIndex({
                 </div>
 
                 <div className="mt-4 flex flex-col gap-6">
-                    {/* Tab Switcher */}
+                    {/* Tab Switcher (Igual) */}
                     <div className="mx-auto flex w-fit items-center gap-1 rounded-2xl bg-zinc-100 p-1.5 shadow-inner lg:mx-0 dark:bg-zinc-800/50">
                         <button
                             onClick={() => setActiveTab('sales')}
@@ -443,9 +461,20 @@ export default function FinancialIndex({
                                                             </span>
                                                             {sale.status ===
                                                             'pending' ? (
-                                                                <Badge className="h-4 w-fit border-none bg-orange-100 px-1.5 text-[8px] font-black text-orange-700 uppercase dark:bg-orange-900/30 dark:text-orange-400">
-                                                                    Crédito
-                                                                </Badge>
+                                                                // --- CAMBIO: Badge interactivo ---
+                                                                <button
+                                                                    onClick={() =>
+                                                                        handleOpenPayment(
+                                                                            sale,
+                                                                        )
+                                                                    }
+                                                                    className="group flex w-fit cursor-pointer items-center gap-1 rounded bg-orange-100 px-1.5 py-0.5 transition-colors hover:bg-orange-200 dark:bg-orange-900/30 dark:hover:bg-orange-900/50"
+                                                                >
+                                                                    <Badge className="h-4 border-none bg-transparent p-0 text-[8px] font-black text-orange-700 uppercase shadow-none hover:bg-transparent dark:text-orange-400">
+                                                                        Crédito
+                                                                    </Badge>
+                                                                    <Banknote className="h-3 w-3 text-orange-600 opacity-50 transition-opacity group-hover:opacity-100 dark:text-orange-400" />
+                                                                </button>
                                                             ) : (
                                                                 <Badge className="h-4 w-fit border-none bg-green-100 px-1.5 text-center text-[8px] font-black text-green-700 uppercase dark:bg-green-900/30 dark:text-green-400">
                                                                     Pagado
@@ -493,7 +522,7 @@ export default function FinancialIndex({
                                                         </div>
                                                         {sale.status ===
                                                             'pending' && (
-                                                            <div className="mt-1 flex flex-col items-end gap-0.5 border-t border-dotted pt-1">
+                                                            <div className="mt-1 flex flex-col items-end gap-1 border-t border-dotted pt-1">
                                                                 <div className="text-[9px] font-bold tracking-tighter text-green-600 uppercase">
                                                                     Abonado:{' '}
                                                                     {formatCurrency(
@@ -509,6 +538,21 @@ export default function FinancialIndex({
                                                                         'COP',
                                                                     )}
                                                                 </div>
+
+                                                                {/* --- CAMBIO: Botón explícito de Abonar --- */}
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="h-6 gap-1 border-orange-200 bg-orange-50 px-2 text-[10px] font-bold text-orange-700 hover:bg-orange-100 hover:text-orange-800 dark:border-orange-900/50 dark:bg-orange-950/20 dark:text-orange-400"
+                                                                    onClick={() =>
+                                                                        handleOpenPayment(
+                                                                            sale,
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    <Banknote className="h-3 w-3" />
+                                                                    Abonar
+                                                                </Button>
                                                             </div>
                                                         )}
                                                     </td>
@@ -635,6 +679,13 @@ export default function FinancialIndex({
                     )}
                 </div>
             </div>
+
+            {/* --- NUEVO: RENDERIZAR EL MODAL --- */}
+            <DebtPaymentModal
+                sale={selectedSale}
+                isOpen={isPaymentModalOpen}
+                onClose={() => setIsPaymentModalOpen(false)}
+            />
         </AppLayout>
     );
 }
