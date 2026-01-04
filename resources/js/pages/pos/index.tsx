@@ -196,7 +196,7 @@ export default function PosIndex({
 
     const cartContent = (
         <div className="flex h-full flex-col border-l bg-white pt-8 lg:pt-0 dark:bg-zinc-900">
-            <CardHeader className="shrink-0 border-b bg-zinc-50/50 p-6 dark:bg-zinc-800/20">
+            <CardHeader className="shrink-0 border-b bg-zinc-50/50 p-6 mt-3 dark:bg-zinc-800/20">
                 <div className="flex items-center justify-between">
                     <div>
                         <CardTitle className="flex items-center gap-2 text-lg font-black tracking-tight">
@@ -569,7 +569,7 @@ export default function PosIndex({
                                     </SheetDescription>
                                 </SheetHeader>
 
-                                <div className="flex-1 overflow-hidden">
+                                <div className="flex-1 overflow-hidden ">
                                     {cartContent}
                                 </div>
                             </SheetContent>
