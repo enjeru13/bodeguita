@@ -41,7 +41,7 @@ class DashboardController extends Controller
             ],
             'low_stock_products' => Product::where('stock', '<', 10)
                 ->orderBy('stock', 'asc')
-                ->take(5)
+                ->take(3)
                 ->get(),
             'recent_sales' => Sale::with('customer')
                 ->latest()
