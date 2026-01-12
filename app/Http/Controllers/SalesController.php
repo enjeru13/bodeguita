@@ -44,7 +44,7 @@ class SalesController extends Controller
 
         // 2. Verificar si la deuda se ha saldado
         // Usamos una pequeña tolerancia para evitar problemas de decimales
-        $isPaidCOP = $sale->paid_amount_cop >= ($sale->total_cop - 50); 
+        $isPaidCOP = $sale->paid_amount_cop >= ($sale->total_cop - 50);
         $isPaidUSD = $sale->paid_amount_usd >= ($sale->total_usd - 0.1);
 
         if ($isPaidCOP || $isPaidUSD) {

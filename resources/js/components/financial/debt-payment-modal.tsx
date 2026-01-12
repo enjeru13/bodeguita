@@ -29,6 +29,8 @@ interface Sale {
     paid_amount_cop: number;
     total_usd: number;
     paid_amount_usd: number;
+    total_ves: number;
+    paid_amount_ves: number;
     customer: { name: string } | null;
 }
 
@@ -49,7 +51,7 @@ export function DebtPaymentModal({ sale, isOpen, onClose }: Props) {
         clearErrors,
     } = useForm({
         amount: '',
-        currency: 'COP', // Por defecto cobramos en Pesos
+        currency: 'COP',
     });
 
     // Resetear formulario cuando se cierra o se completa
@@ -83,6 +85,7 @@ export function DebtPaymentModal({ sale, isOpen, onClose }: Props) {
     // Calcular deuda restante para mostrarla visualmente
     const debtCOP = sale.total_cop - sale.paid_amount_cop;
     const debtUSD = sale.total_usd - sale.paid_amount_usd;
+    const debtVES = sale.total_ves - sale.paid_amount_ves;
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
@@ -120,6 +123,12 @@ export function DebtPaymentModal({ sale, isOpen, onClose }: Props) {
                             </span>
                             <span className="text-[10px] font-bold text-zinc-400">
                                 DÓLARES (USD)
+                            </span>
+                            <span className="text-sm font-bold text-zinc-600 dark:text-zinc-400">
+                                ${debtVES.toFixed(2)}
+                            </span>
+                            <span className="text-[10px] font-bold text-zinc-400">
+                                Bolívares (VES)
                             </span>
                         </div>
                     </div>

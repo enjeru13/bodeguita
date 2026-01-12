@@ -5,7 +5,7 @@ import { type BreadcrumbItem } from '@/types';
 import { Head, useForm } from '@inertiajs/react';
 import {
     ArrowUpRight,
-    Banknote, // <--- NUEVO IMPORT
+    Banknote,
     Clock,
     History as HistoryIcon,
     LayoutDashboard,
@@ -18,7 +18,7 @@ import {
 import { useState } from 'react';
 import { toast } from 'sonner';
 
-import { DebtPaymentModal } from '@/components/financial/debt-payment-modal'; // <--- NUEVO IMPORT
+import { DebtPaymentModal } from '@/components/financial/debt-payment-modal';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,7 +26,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-// ... (Las interfaces ExchangeRate, SaleItem se mantienen igual)
 interface ExchangeRate {
     id: number;
     currency_code: string;
@@ -59,7 +58,6 @@ interface Sale {
     items: SaleItem[];
 }
 
-// ... (Resto de interfaces Debtor, Summary igual)
 interface Debtor {
     customer_id: number;
     customer_name: string;
@@ -105,7 +103,7 @@ export default function FinancialIndex({
     const [searchTerm, setSearchTerm] = useState('');
     const [activeTab, setActiveTab] = useState<'sales' | 'debtors'>('sales');
 
-    // --- NUEVO ESTADO PARA EL MODAL DE PAGO ---
+    // --- ESTADO PARA EL MODAL DE PAGO ---
     const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
@@ -113,7 +111,6 @@ export default function FinancialIndex({
         setSelectedSale(sale);
         setIsPaymentModalOpen(true);
     };
-    // -------------------------------------------
 
     // Exchange rates form
     const { data, setData, post, processing } = useForm({
@@ -142,6 +139,7 @@ export default function FinancialIndex({
         });
     };
 
+    // --- LOGICA DE FILTRADO PARA VENTAS ---
     const filteredSales = sales.filter((sale) => {
         const customerName = sale.customer?.name || 'cliente eventual';
         const matchesCustomer = customerName
@@ -150,6 +148,11 @@ export default function FinancialIndex({
         const matchesId = sale.id.toString().includes(searchTerm);
         return matchesCustomer || matchesId;
     });
+
+    // --- LOGICA DE FILTRADO PARA DEUDORES (NUEVO) ---
+    const filteredDebtors = debtors.filter((debtor) =>
+        debtor.customer_name.toLowerCase().includes(searchTerm.toLowerCase()),
+    );
 
     const formatCurrency = (
         amount: number,
@@ -186,7 +189,6 @@ export default function FinancialIndex({
                             onSubmit={submitRates}
                             className="flex flex-col gap-4 md:flex-row md:items-center md:gap-6"
                         >
-                            {/* ... (Contenido del formulario igual) ... */}
                             <div className="flex items-center gap-2 border-b border-zinc-200 pb-2 md:border-r md:border-b-0 md:pr-4 md:pb-0 dark:border-zinc-800">
                                 <RefreshCw className="animate-spin-slow h-3.5 w-3.5 text-muted-foreground" />
                                 <span className="text-[10px] font-bold tracking-widest whitespace-nowrap text-muted-foreground uppercase">
@@ -255,9 +257,8 @@ export default function FinancialIndex({
                     </div>
                 </div>
 
-                {/* Dashboard Cards (Se mantienen igual, las omito para ahorrar espacio visual, pero van aquí) */}
+                {/* Dashboard Cards */}
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                    {/* ... Cards de Patrimonio, Deudas, etc ... */}
                     <Card className="relative overflow-hidden border-none bg-gradient-to-br from-indigo-600 to-indigo-700 text-white shadow-lg lg:col-span-1">
                         <CardHeader className="pb-2">
                             <CardTitle className="text-[10px] font-black tracking-widest text-indigo-200 uppercase opacity-80">
@@ -370,10 +371,13 @@ export default function FinancialIndex({
                 </div>
 
                 <div className="mt-4 flex flex-col gap-6">
-                    {/* Tab Switcher (Igual) */}
+                    {/* Tab Switcher */}
                     <div className="mx-auto flex w-fit items-center gap-1 rounded-2xl bg-zinc-100 p-1.5 shadow-inner lg:mx-0 dark:bg-zinc-800/50">
                         <button
-                            onClick={() => setActiveTab('sales')}
+                            onClick={() => {
+                                setActiveTab('sales');
+                                setSearchTerm(''); // Limpiar filtro al cambiar
+                            }}
                             className={cn(
                                 'flex items-center gap-2 rounded-xl px-6 py-2.5 text-xs font-black tracking-widest uppercase transition-all',
                                 activeTab === 'sales'
@@ -385,7 +389,10 @@ export default function FinancialIndex({
                             Historial
                         </button>
                         <button
-                            onClick={() => setActiveTab('debtors')}
+                            onClick={() => {
+                                setActiveTab('debtors');
+                                setSearchTerm(''); // Limpiar filtro al cambiar
+                            }}
                             className={cn(
                                 'flex items-center gap-2 rounded-xl px-6 py-2.5 text-xs font-black tracking-widest uppercase transition-all',
                                 activeTab === 'debtors'
@@ -460,8 +467,7 @@ export default function FinancialIndex({
                                                                 #{sale.id}
                                                             </span>
                                                             {sale.status ===
-                                                            'pending' ? (
-                                                                // --- CAMBIO: Badge interactivo ---
+                                                                'pending' ? (
                                                                 <button
                                                                     onClick={() =>
                                                                         handleOpenPayment(
@@ -522,39 +528,38 @@ export default function FinancialIndex({
                                                         </div>
                                                         {sale.status ===
                                                             'pending' && (
-                                                            <div className="mt-1 flex flex-col items-end gap-1 border-t border-dotted pt-1">
-                                                                <div className="text-[9px] font-bold tracking-tighter text-green-600 uppercase">
-                                                                    Abonado:{' '}
-                                                                    {formatCurrency(
-                                                                        sale.paid_amount_cop,
-                                                                        'COP',
-                                                                    )}
-                                                                </div>
-                                                                <div className="text-[10px] font-black tracking-tighter text-destructive uppercase">
-                                                                    Deuda:{' '}
-                                                                    {formatCurrency(
-                                                                        sale.total_cop -
+                                                                <div className="mt-1 flex flex-col items-end gap-1 border-t border-dotted pt-1">
+                                                                    <div className="text-[9px] font-bold tracking-tighter text-green-600 uppercase">
+                                                                        Abonado:{' '}
+                                                                        {formatCurrency(
                                                                             sale.paid_amount_cop,
-                                                                        'COP',
-                                                                    )}
-                                                                </div>
+                                                                            'COP',
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="text-[10px] font-black tracking-tighter text-destructive uppercase">
+                                                                        Deuda:{' '}
+                                                                        {formatCurrency(
+                                                                            sale.total_cop -
+                                                                            sale.paid_amount_cop,
+                                                                            'COP',
+                                                                        )}
+                                                                    </div>
 
-                                                                {/* --- CAMBIO: Botón explícito de Abonar --- */}
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="outline"
-                                                                    className="h-6 gap-1 border-orange-200 bg-orange-50 px-2 text-[10px] font-bold text-orange-700 hover:bg-orange-100 hover:text-orange-800 dark:border-orange-900/50 dark:bg-orange-950/20 dark:text-orange-400"
-                                                                    onClick={() =>
-                                                                        handleOpenPayment(
-                                                                            sale,
-                                                                        )
-                                                                    }
-                                                                >
-                                                                    <Banknote className="h-3 w-3" />
-                                                                    Abonar
-                                                                </Button>
-                                                            </div>
-                                                        )}
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        className="h-6 gap-1 border-orange-200 bg-orange-50 px-2 text-[10px] font-bold text-orange-700 hover:bg-orange-100 hover:text-orange-800 dark:border-orange-900/50 dark:bg-orange-950/20 dark:text-orange-400"
+                                                                        onClick={() =>
+                                                                            handleOpenPayment(
+                                                                                sale,
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        <Banknote className="h-3 w-3" />
+                                                                        Abonar
+                                                                    </Button>
+                                                                </div>
+                                                            )}
                                                     </td>
                                                     <td className="px-6 py-4 text-right">
                                                         <div className="text-xs font-bold text-zinc-600 dark:text-zinc-400">
@@ -594,15 +599,30 @@ export default function FinancialIndex({
                         </Card>
                     ) : (
                         <Card className="overflow-hidden border-none bg-white shadow-xl dark:bg-zinc-900">
-                            <CardHeader className="border-b pb-4">
-                                <CardTitle className="text-lg font-bold text-orange-700 dark:text-orange-400">
-                                    Cuentas por Cobrar
-                                </CardTitle>
-                                <p className="text-xs text-muted-foreground">
-                                    Listado de deudas pendientes agrupadas por
-                                    cliente.
-                                </p>
+                            {/* HEADER DE DEUDORES CON BUSCADOR */}
+                            <CardHeader className="flex flex-col items-center justify-between space-y-4 border-b bg-zinc-50/30 p-6 md:flex-row md:space-y-0 dark:bg-zinc-800/10">
+                                <div className="space-y-1">
+                                    <CardTitle className="text-lg font-bold text-orange-700 dark:text-orange-400">
+                                        Cuentas por Cobrar
+                                    </CardTitle>
+                                    <p className="text-xs text-muted-foreground">
+                                        Listado de deudas pendientes agrupadas
+                                        por cliente.
+                                    </p>
+                                </div>
+                                <div className="relative w-full md:w-80">
+                                    <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                                    <Input
+                                        placeholder="Buscar deudor..."
+                                        className="h-11 rounded-xl border-dashed bg-white pl-10 text-sm transition-all focus-visible:ring-orange-500/30 dark:bg-zinc-800"
+                                        value={searchTerm}
+                                        onChange={(e) =>
+                                            setSearchTerm(e.target.value)
+                                        }
+                                    />
+                                </div>
                             </CardHeader>
+
                             <CardContent className="p-0">
                                 <div className="overflow-x-auto text-sm">
                                     <table className="w-full min-w-[500px]">
@@ -623,7 +643,8 @@ export default function FinancialIndex({
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                                            {debtors.map((debtor) => (
+                                            {/* USANDO EL ARRAY FILTRADO */}
+                                            {filteredDebtors.map((debtor) => (
                                                 <tr
                                                     key={debtor.customer_id}
                                                     className="transition-colors hover:bg-orange-50/20"
@@ -655,7 +676,7 @@ export default function FinancialIndex({
                                                     </td>
                                                 </tr>
                                             ))}
-                                            {debtors.length === 0 && (
+                                            {filteredDebtors.length === 0 && (
                                                 <tr>
                                                     <td
                                                         colSpan={4}
@@ -663,10 +684,9 @@ export default function FinancialIndex({
                                                     >
                                                         <Users className="mx-auto mb-4 h-12 w-12 opacity-10" />
                                                         <p>
-                                                            No hay deudas
-                                                            pendientes
-                                                            actualmente. ¡Todo
-                                                            al día!
+                                                            {searchTerm
+                                                                ? 'No se encontró ningún deudor con ese nombre.'
+                                                                : 'No hay deudas pendientes actualmente. ¡Todo al día!'}
                                                         </p>
                                                     </td>
                                                 </tr>
@@ -680,7 +700,6 @@ export default function FinancialIndex({
                 </div>
             </div>
 
-            {/* --- NUEVO: RENDERIZAR EL MODAL --- */}
             <DebtPaymentModal
                 sale={selectedSale}
                 isOpen={isPaymentModalOpen}
