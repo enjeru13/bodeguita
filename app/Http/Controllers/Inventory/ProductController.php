@@ -21,6 +21,14 @@ class ProductController extends Controller
         ]);
     }
 
+    public function priceList()
+    {
+        return view('price-list', [
+            'products' => Product::where('stock', '>', 0)->orderBy('name')->get(),
+            'exchangeRate' => ExchangeRate::where('currency_code', 'COP')->value('rate') ?? 1
+        ]);
+    }
+
     public function store(Request $request)
     {
         // 1. Validamos usando los nombres que vienen del formulario (React)

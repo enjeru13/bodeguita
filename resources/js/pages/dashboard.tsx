@@ -9,6 +9,7 @@ import {
     ArrowRight,
     Clock,
     DollarSign,
+    FileText,
     Package,
     RefreshCw,
     ShoppingCart,
@@ -348,40 +349,57 @@ export default function Dashboard({
                                 Panel de Operaciones
                             </CardTitle>
                         </CardHeader>
-<CardContent className="flex flex-col gap-4 md:flex-row md:gap-4">
-    {/* Botón VENDER */}
-    <Button
-        className="group relative min-h-[110px] flex-1 overflow-hidden rounded-2xl border-none bg-indigo-600 p-0 shadow-lg transition-all hover:bg-indigo-700 hover:shadow-indigo-500/25 active:scale-[0.98]"
-        asChild
-    >
-        <Link href="/pos" className="flex h-full w-full items-center gap-5">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/20 backdrop-blur-md transition-transform group-hover:rotate-12">
-                <ShoppingCart className="h-6 w-6 text-white" />
-            </div>
-            <div className="flex flex-col items-start leading-tight">
-                <span className="text-base font-black tracking-tight text-white">VENDER</span>
-                <span className="text-[10px] font-bold tracking-widest text-indigo-100/90 uppercase mt-1">Terminal POS</span>
-            </div>
-        </Link>
-    </Button>
+                        <CardContent className="flex flex-col gap-4 md:flex-row md:gap-4">
+                            {/* Botón VENDER */}
+                            <Button
+                                className="group relative min-h-[110px] flex-1 overflow-hidden rounded-2xl border-none bg-indigo-600 p-0 shadow-lg transition-all hover:bg-indigo-700 hover:shadow-indigo-500/25 active:scale-[0.98]"
+                                asChild
+                            >
+                                <Link href="/pos" className="flex h-full w-full items-center justify-center gap-5">
+                                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/20 backdrop-blur-md transition-transform group-hover:rotate-12">
+                                        <ShoppingCart className="h-6 w-6 text-white" />
+                                    </div>
+                                    <div className="flex flex-col items-start leading-tight">
+                                        <span className="text-base font-black tracking-tight text-white">VENDER</span>
+                                        <span className="text-[10px] font-bold tracking-widest text-indigo-100/90 uppercase mt-1">Terminal POS</span>
+                                    </div>
+                                </Link>
+                            </Button>
 
-    {/* Botón ALMACÉN */}
-    <Button
-        variant="outline"
-        className="group relative min-h-[110px] flex-1 overflow-hidden rounded-2xl border-2 border-zinc-100 bg-zinc-50 p-0 shadow-sm transition-all hover:border-indigo-200 hover:bg-white active:scale-[0.98] dark:border-zinc-800 dark:bg-zinc-800/50 dark:hover:bg-zinc-800"
-        asChild
-    >
-        <Link href="/inventory" className="flex h-full w-full items-center gap-5">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-zinc-200/50 transition-transform group-hover:-rotate-12 dark:bg-zinc-700">
-                <Package className="h-6 w-6 text-zinc-600 dark:text-zinc-300" />
-            </div>
-            <div className="flex flex-col items-start leading-tight">
-                <span className="text-base font-black tracking-tight text-zinc-900 dark:text-zinc-100">ALMACÉN</span>
-                <span className="text-[10px] font-bold tracking-widest text-zinc-500 uppercase mt-1">Existencias</span>
-            </div>
-        </Link>
-    </Button>
-</CardContent>
+                            {/* Botón ALMACÉN */}
+                            <Button
+                                variant="outline"
+                                className="group relative min-h-[110px] flex-1 overflow-hidden rounded-2xl border-2 border-zinc-100 bg-zinc-50 p-0 shadow-sm transition-all hover:border-indigo-200 hover:bg-white active:scale-[0.98] dark:border-zinc-800 dark:bg-zinc-800/50 dark:hover:bg-zinc-800"
+                                asChild
+                            >
+                                <Link href="/inventory" className="flex h-full w-full items-center justify-center gap-5">
+                                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-zinc-200/50 transition-transform group-hover:-rotate-12 dark:bg-zinc-700">
+                                        <Package className="h-6 w-6 text-zinc-600 dark:text-zinc-300" />
+                                    </div>
+                                    <div className="flex flex-col items-start leading-tight">
+                                        <span className="text-base font-black tracking-tight text-zinc-900 dark:text-zinc-100">ALMACÉN</span>
+                                        <span className="text-[10px] font-bold tracking-widest text-zinc-500 uppercase mt-1">Existencias</span>
+                                    </div>
+                                </Link>
+                            </Button>
+
+                            {/* Botón CATÁLOGO */}
+                            <Button
+                                variant="outline"
+                                className="group relative min-h-[110px] flex-1 overflow-hidden rounded-2xl border-2 border-zinc-100 bg-zinc-50 p-0 shadow-sm transition-all hover:border-emerald-200 hover:bg-white active:scale-[0.98] dark:border-zinc-800 dark:bg-zinc-800/50 dark:hover:bg-zinc-800"
+                                onClick={() => window.open('/inventory/price-list', '_blank')}
+                            >
+                                <div className="flex h-full w-full items-center justify-center gap-5">
+                                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-100/50 transition-transform group-hover:rotate-6 dark:bg-emerald-900/30">
+                                        <FileText className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+                                    </div>
+                                    <div className="flex flex-col items-start leading-tight">
+                                        <span className="text-base font-black tracking-tight text-zinc-900 dark:text-zinc-100">CATÁLOGO</span>
+                                        <span className="text-[10px] font-bold tracking-widest text-zinc-500 uppercase mt-1">Precios COP</span>
+                                    </div>
+                                </div>
+                            </Button>
+                        </CardContent>
                     </Card>
                 </div>
             </div>

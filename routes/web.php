@@ -11,6 +11,8 @@ Route::get('/', function () {
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', [App\Http\Controllers\DashboardController::class, 'index'])->name('dashboard');
 
+    Route::get('inventory/price-list', [\App\Http\Controllers\Inventory\ProductController::class, 'priceList'])->name('inventory.price-list');
+
     Route::resource('inventory', \App\Http\Controllers\Inventory\ProductController::class)->names([
         'index' => 'inventory.index',
         'create' => 'inventory.create',
