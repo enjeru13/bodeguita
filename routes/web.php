@@ -27,6 +27,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('pos', [\App\Http\Controllers\SalesController::class, 'index'])->name('pos.index');
     Route::post('pos', [\App\Http\Controllers\SalesController::class, 'store'])->name('pos.store');
     Route::post('sales/{sale}/payment', [SalesController::class, 'addPayment'])->name('sales.payment');
+    Route::post('sales/customer/{customerId}/pay-debt', [SalesController::class, 'payCustomerDebt'])->name('sales.customer.pay-debt');
 
     Route::get('financial', [\App\Http\Controllers\FinancialController::class, 'index'])->name('financial.index');
     Route::post('exchange-rates', [\App\Http\Controllers\FinancialController::class, 'updateRates'])->name('exchange-rates.update');

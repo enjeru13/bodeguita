@@ -57,6 +57,82 @@ class SalesController extends Controller
         return redirect()->back()->with('success', 'Abono registrado correctamente.');
     }
 
+    public function payCustomerDebt(Request $request, $customerId)
+    {
+        $validated = $request->validate([
+            'amount' => 'required|numeric|min:0.01',
+            'currency' => 'required|in:COP,USD,VES',
+        ]);
+
+        $amount = $validated['amount'];
+        $currency = $validated['currency'];
+
+        // Obtener todas las ventas pendientes del cliente, ordenadas por fecha (más antiguas primero)
+        $pendingSales = Sale::where('customer_id', $customerId)
+            ->where('status', 'pending')
+            ->orderBy('created_at', 'asc')
+            ->get();
+
+        if ($pendingSales->isEmpty()) {
+            return redirect()->back()->with('error', 'No hay ventas pendientes para este cliente.');
+        }
+
+        $remainingAmount = $amount;
+        $salesPaid = 0;
+        $salesPartiallyPaid = 0;
+
+        // Algoritmo de distribución inteligente
+        foreach ($pendingSales as $sale) {
+            if ($remainingAmount <= 0) {
+                break;
+            }
+
+            // Calcular la deuda restante según la moneda
+            $totalField = 'total_' . strtolower($currency);
+            $paidField = 'paid_amount_' . strtolower($currency);
+
+            $debt = $sale->$totalField - $sale->$paidField;
+
+            if ($debt <= 0) {
+                continue; // Esta venta ya está pagada en esta moneda
+            }
+
+            if ($remainingAmount >= $debt) {
+                // Pagar completamente esta venta
+                $sale->$paidField += $debt;
+                $remainingAmount -= $debt;
+
+                // Verificar si está completamente pagada en todas las monedas
+                $isPaidCOP = $sale->paid_amount_cop >= ($sale->total_cop - 50);
+                $isPaidUSD = $sale->paid_amount_usd >= ($sale->total_usd - 0.1);
+                $isPaidVES = $sale->paid_amount_ves >= ($sale->total_ves - 50);
+
+                if ($isPaidCOP || $isPaidUSD || $isPaidVES) {
+                    $sale->status = 'completed';
+                    $salesPaid++;
+                }
+            } else {
+                // Pago parcial
+                $sale->$paidField += $remainingAmount;
+                $remainingAmount = 0;
+                $salesPartiallyPaid++;
+            }
+
+            $sale->save();
+        }
+
+        // Mensaje de éxito personalizado
+        $message = "Pago procesado correctamente. ";
+        if ($salesPaid > 0) {
+            $message .= "$salesPaid venta(s) saldada(s) completamente. ";
+        }
+        if ($salesPartiallyPaid > 0) {
+            $message .= "$salesPartiallyPaid venta(s) abonada(s) parcialmente.";
+        }
+
+        return redirect()->back()->with('success', $message);
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([

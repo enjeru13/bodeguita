@@ -19,6 +19,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 
 import { DebtPaymentModal } from '@/components/financial/debt-payment-modal';
+import { DebtorPaymentModal } from '@/components/financial/debtor-payment-modal';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -106,6 +107,10 @@ export default function FinancialIndex({
     // --- ESTADO PARA EL MODAL DE PAGO ---
     const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+
+    // --- ESTADO PARA EL MODAL DE PAGO DE DEUDOR ---
+    const [selectedDebtor, setSelectedDebtor] = useState<Debtor | null>(null);
+    const [isDebtorPaymentModalOpen, setIsDebtorPaymentModalOpen] = useState(false);
 
     const handleOpenPayment = (sale: Sale) => {
         setSelectedSale(sale);
@@ -640,6 +645,9 @@ export default function FinancialIndex({
                                                 <th className="h-12 px-6 text-right text-[10px] font-black tracking-widest text-muted-foreground uppercase">
                                                     Monto Ref. (USD)
                                                 </th>
+                                                <th className="h-12 px-6 text-center text-[10px] font-black tracking-widest text-muted-foreground uppercase">
+                                                    Acciones
+                                                </th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
@@ -674,12 +682,25 @@ export default function FinancialIndex({
                                                             'USD',
                                                         )}
                                                     </td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <Button
+                                                            size="sm"
+                                                            className="h-8 gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700"
+                                                            onClick={() => {
+                                                                setSelectedDebtor(debtor);
+                                                                setIsDebtorPaymentModalOpen(true);
+                                                            }}
+                                                        >
+                                                            <Banknote className="h-3.5 w-3.5" />
+                                                            Abonar
+                                                        </Button>
+                                                    </td>
                                                 </tr>
                                             ))}
                                             {filteredDebtors.length === 0 && (
                                                 <tr>
                                                     <td
-                                                        colSpan={4}
+                                                        colSpan={5}
                                                         className="p-16 text-center text-muted-foreground italic"
                                                     >
                                                         <Users className="mx-auto mb-4 h-12 w-12 opacity-10" />
@@ -704,6 +725,12 @@ export default function FinancialIndex({
                 sale={selectedSale}
                 isOpen={isPaymentModalOpen}
                 onClose={() => setIsPaymentModalOpen(false)}
+            />
+
+            <DebtorPaymentModal
+                debtor={selectedDebtor}
+                isOpen={isDebtorPaymentModalOpen}
+                onClose={() => setIsDebtorPaymentModalOpen(false)}
             />
         </AppLayout>
     );
