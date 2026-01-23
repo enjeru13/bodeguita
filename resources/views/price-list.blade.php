@@ -59,6 +59,12 @@
             font-size: 0.85em;
             font-family: monospace;
         }
+        .stock {
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: 600;
+            text-align: center;
+            font-size: 1em;
+        }
         @media print {
             body {
                 padding: 0;
@@ -98,6 +104,7 @@
             <tr>
                 <th>Producto</th>
                 <th>Código / SKU</th>
+                <th style="text-align: center">Stock</th>
                 <th style="text-align: right">Precio (COP)</th>
             </tr>
         </thead>
@@ -111,6 +118,7 @@
                         @endif
                     </td>
                     <td class="sku">{{ $product->sku ?? '---' }}</td>
+                    <td class="stock">{{ $product->stock }}</td>
                     <td class="price">{{ number_format(round($product->selling_price * $exchangeRate), 0, ',', '.') }} COP</td>
                 </tr>
             @endforeach
