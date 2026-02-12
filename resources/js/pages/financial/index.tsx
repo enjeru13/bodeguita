@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 
 import { DebtPaymentModal } from '@/components/financial/debt-payment-modal';
 import { DebtorPaymentModal } from '@/components/financial/debtor-payment-modal';
+import { SaleDetailModal } from '@/components/financial/sale-detail-modal';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -111,6 +112,10 @@ export default function FinancialIndex({
     // --- ESTADO PARA EL MODAL DE PAGO DE DEUDOR ---
     const [selectedDebtor, setSelectedDebtor] = useState<Debtor | null>(null);
     const [isDebtorPaymentModalOpen, setIsDebtorPaymentModalOpen] = useState(false);
+
+    // --- ESTADO PARA EL MODAL DE DETALLE DE VENTA ---
+    const [viewingSale, setViewingSale] = useState<Sale | null>(null);
+    const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
     const handleOpenPayment = (sale: Sale) => {
         setSelectedSale(sale);
@@ -515,14 +520,25 @@ export default function FinancialIndex({
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4">
-                                                        <p className="max-w-[240px] truncate text-[11px] leading-relaxed text-muted-foreground">
-                                                            {sale.items
-                                                                .map(
-                                                                    (i) =>
-                                                                        `${i.quantity}x ${i.product.name}`,
-                                                                )
-                                                                .join(', ')}
-                                                        </p>
+                                                        <button
+                                                            onClick={() => {
+                                                                setViewingSale(sale);
+                                                                setIsDetailModalOpen(true);
+                                                            }}
+                                                            className="flex flex-col gap-0.5 text-left group"
+                                                        >
+                                                            <p className="max-w-[240px] truncate text-[11px] font-bold text-indigo-600 transition-colors group-hover:text-indigo-700 dark:text-indigo-400 dark:group-hover:text-indigo-300">
+                                                                {sale.items
+                                                                    .map(
+                                                                        (i) =>
+                                                                            `${i.quantity}x ${i.product.name}`,
+                                                                    )
+                                                                    .join(', ')}
+                                                            </p>
+                                                            <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400 opacity-0 transition-opacity group-hover:opacity-100">
+                                                                Ver Todo el Detalle
+                                                            </span>
+                                                        </button>
                                                     </td>
                                                     <td className="px-6 py-4 text-right">
                                                         <div className="text-lg font-black text-zinc-900 dark:text-zinc-50">
@@ -731,6 +747,12 @@ export default function FinancialIndex({
                 debtor={selectedDebtor}
                 isOpen={isDebtorPaymentModalOpen}
                 onClose={() => setIsDebtorPaymentModalOpen(false)}
+            />
+
+            <SaleDetailModal
+                sale={viewingSale}
+                isOpen={isDetailModalOpen}
+                onClose={() => setIsDetailModalOpen(false)}
             />
         </AppLayout>
     );
