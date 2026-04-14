@@ -7,7 +7,7 @@ import { Head, Link } from '@inertiajs/react';
 import {
     AlertTriangle,
     ArrowRight,
-    Clock,
+    Crown,
     DollarSign,
     FileText,
     Package,
@@ -24,12 +24,13 @@ interface Product {
     sku: string | null;
 }
 
-interface Sale {
+interface TopCustomer {
     id: number;
-    total_usd: number;
-    total_cop: number;
-    created_at: string;
-    customer?: { name: string };
+    name: string;
+    total_orders: number;
+    total_spent_usd: number;
+    total_spent_cop: number;
+    total_spent_ves: number;
 }
 
 interface DashboardProps {
@@ -43,7 +44,7 @@ interface DashboardProps {
         total_customers: number;
     };
     low_stock_products: Product[];
-    recent_sales: Sale[];
+    top_customers: TopCustomer[];
     exchange_rates: Record<string, number>;
 }
 
@@ -54,10 +55,16 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
+const MEDAL_STYLES = [
+    { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-600 dark:text-amber-400', border: 'border-l-amber-500', medal: '🥇' },
+    { bg: 'bg-zinc-100 dark:bg-zinc-800/50', text: 'text-zinc-500 dark:text-zinc-400', border: 'border-l-zinc-400', medal: '🥈' },
+    { bg: 'bg-orange-100 dark:bg-orange-900/20', text: 'text-orange-600 dark:text-orange-400', border: 'border-l-orange-400', medal: '🥉' },
+];
+
 export default function Dashboard({
     stats,
     low_stock_products,
-    recent_sales,
+    top_customers,
     exchange_rates,
 }: DashboardProps) {
     return (
@@ -177,15 +184,16 @@ export default function Dashboard({
                 </div>
 
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
-                    {/* Recent Sales List */}
+                    {/* Top Customers */}
                     <Card className="overflow-hidden border-none bg-white shadow-xl lg:col-span-4 dark:bg-zinc-900">
-                        <CardHeader className="flex flex-row items-center justify-between border-b bg-zinc-50/50 py-2 dark:bg-zinc-800/50">
+                        <CardHeader className="flex flex-row items-center justify-between border-b bg-gradient-to-r from-purple-50/50 to-indigo-50/50 py-2 dark:from-purple-900/10 dark:to-indigo-900/10">
                             <div>
-                                <CardTitle className="text-xl font-black tracking-tight">
-                                    Ventas Recientes
+                                <CardTitle className="flex items-center gap-2 text-xl font-black tracking-tight">
+                                    <Crown className="h-5 w-5 text-amber-500" />
+                                    Clientes Top
                                 </CardTitle>
                                 <p className="mt-0.5 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-                                    Últimas transacciones
+                                    Mayor inversión acumulada
                                 </p>
                             </div>
                             <Button
@@ -198,56 +206,49 @@ export default function Dashboard({
                                     href="/financial"
                                     className="flex items-center gap-1 text-[10px] font-black tracking-widest text-indigo-600 uppercase"
                                 >
-                                    Ver todas <ArrowRight className="h-3 w-3" />
+                                    Ver más <ArrowRight className="h-3 w-3" />
                                 </Link>
                             </Button>
                         </CardHeader>
                         <CardContent className="p-0">
                             <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                                {recent_sales.map((sale) => (
-                                    <div
-                                        key={sale.id}
-                                        className="flex items-center justify-between p-4 px-6 transition-colors hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30"
-                                    >
-                                        <div className="flex items-center gap-4">
-                                            <div className="rounded-full bg-zinc-100 p-2 dark:bg-zinc-800">
-                                                <DollarSign className="h-4 w-4 text-zinc-500" />
-                                            </div>
-                                            <div>
-                                                <div className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                                                    {sale.customer?.name ||
-                                                        'Cliente Eventual'}
+                                {top_customers.map((customer, index) => {
+                                    const style = MEDAL_STYLES[index] || MEDAL_STYLES[2];
+                                    return (
+                                        <div
+                                            key={customer.id}
+                                            className={`flex items-center justify-between p-4 px-6 transition-colors hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 border-l-4 ${style.border}`}
+                                        >
+                                            <div className="flex items-center gap-4">
+                                                <div className={`flex h-10 w-10 items-center justify-center rounded-full text-lg ${style.bg}`}>
+                                                    {style.medal}
                                                 </div>
-                                                <div className="mt-0.5 flex items-center gap-1 text-[10px] font-bold text-muted-foreground uppercase">
-                                                    <Clock className="h-3 w-3" />{' '}
-                                                    {new Date(
-                                                        sale.created_at,
-                                                    ).toLocaleTimeString([], {
-                                                        hour: '2-digit',
-                                                        minute: '2-digit',
-                                                    })}
+                                                <div>
+                                                    <div className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                                                        {customer.name}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="text-lg font-black text-green-600 dark:text-green-400">
+                                                    {Number(
+                                                        customer.total_spent_cop,
+                                                    ).toLocaleString()}
+                                                </div>
+                                                <div className="font-mono text-[10px] font-bold text-muted-foreground">
+                                                    $
+                                                    {Number(customer.total_spent_usd).toFixed(
+                                                        2,
+                                                    )}{' '}
+                                                    USD
                                                 </div>
                                             </div>
                                         </div>
-                                        <div className="text-right">
-                                            <div className="text-lg font-black text-green-600 dark:text-green-400">
-                                                {Number(
-                                                    sale.total_cop,
-                                                ).toLocaleString()}
-                                            </div>
-                                            <div className="font-mono text-[10px] font-bold text-muted-foreground">
-                                                $
-                                                {Number(sale.total_usd).toFixed(
-                                                    2,
-                                                )}{' '}
-                                                USD
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                                {recent_sales.length === 0 && (
+                                    );
+                                })}
+                                {top_customers.length === 0 && (
                                     <div className="py-12 text-center text-sm text-muted-foreground italic">
-                                        No hay ventas registradas hoy.
+                                        Aún no hay clientes con compras registradas.
                                     </div>
                                 )}
                             </div>

@@ -43,18 +43,27 @@ class DashboardController extends Controller
                 ->orderBy('stock', 'asc')
                 ->take(3)
                 ->get(),
-            'recent_sales' => Sale::with('customer')
-                ->latest()
+            'top_customers' => Customer::select(
+                    'customers.id',
+                    'customers.name',
+                    DB::raw('COUNT(sales.id) as total_orders'),
+                    DB::raw('SUM(sales.total_usd) as total_spent_usd'),
+                    DB::raw('SUM(sales.total_cop) as total_spent_cop'),
+                    DB::raw('SUM(sales.total_ves) as total_spent_ves')
+                )
+                ->join('sales', 'customers.id', '=', 'sales.customer_id')
+                ->groupBy('customers.id', 'customers.name')
+                ->orderByDesc('total_spent_cop')
                 ->take(3)
                 ->get()
-                ->map(function ($sale) use ($exchange_rates) {
-                    if ($sale->total_cop == 0 && $sale->total_usd > 0) {
-                        $sale->total_cop = $sale->total_usd * ($exchange_rates['COP'] ?? 0);
+                ->map(function ($customer) use ($exchange_rates) {
+                    if ($customer->total_spent_cop == 0 && $customer->total_spent_usd > 0) {
+                        $customer->total_spent_cop = $customer->total_spent_usd * ($exchange_rates['COP'] ?? 0);
                     }
-                    if ($sale->total_ves == 0 && $sale->total_usd > 0) {
-                        $sale->total_ves = $sale->total_usd * ($exchange_rates['VES'] ?? 0);
+                    if ($customer->total_spent_ves == 0 && $customer->total_spent_usd > 0) {
+                        $customer->total_spent_ves = $customer->total_spent_usd * ($exchange_rates['VES'] ?? 0);
                     }
-                    return $sale;
+                    return $customer;
                 }),
             'exchange_rates' => $exchange_rates
         ]);
