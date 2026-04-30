@@ -16,12 +16,25 @@ import {
     TrendingUp,
     Users,
 } from 'lucide-react';
+import NotesSection from '@/components/notes-section';
 
 interface Product {
     id: number;
     name: string;
     stock: number;
     sku: string | null;
+}
+
+interface Note {
+    id: number;
+    content: string;
+    color: string;
+    is_pinned: boolean;
+    created_at: string;
+    user: {
+        id: number;
+        name: string;
+    };
 }
 
 interface TopCustomer {
@@ -46,6 +59,7 @@ interface DashboardProps {
     low_stock_products: Product[];
     top_customers: TopCustomer[];
     exchange_rates: Record<string, number>;
+    notes: Note[];
 }
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -66,6 +80,7 @@ export default function Dashboard({
     low_stock_products,
     top_customers,
     exchange_rates,
+    notes,
 }: DashboardProps) {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -403,6 +418,8 @@ export default function Dashboard({
                         </CardContent>
                     </Card>
                 </div>
+
+                <NotesSection notes={notes} />
             </div>
         </AppLayout>
     );

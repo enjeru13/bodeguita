@@ -65,7 +65,11 @@ class DashboardController extends Controller
                     }
                     return $customer;
                 }),
-            'exchange_rates' => $exchange_rates
+            'exchange_rates' => $exchange_rates,
+            'notes' => \App\Models\Note::with('user')
+                ->orderBy('is_pinned', 'desc')
+                ->orderBy('created_at', 'desc')
+                ->get()
         ]);
     }
 }
