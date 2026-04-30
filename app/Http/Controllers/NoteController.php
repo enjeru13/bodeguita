@@ -12,7 +12,7 @@ class NoteController extends Controller
     {
         $validated = $request->validate([
             'content' => 'required|string|max:1000',
-            'color' => 'nullable|string|in:yellow,blue,green,pink,purple',
+            'color' => 'nullable|string|in:yellow,blue,green,pink,purple,orange,red,teal,indigo',
         ]);
 
         Note::create([
@@ -29,7 +29,7 @@ class NoteController extends Controller
     {
         $validated = $request->validate([
             'content' => 'nullable|string|max:1000',
-            'color' => 'nullable|string|in:yellow,blue,green,pink,purple',
+            'color' => 'nullable|string|in:yellow,blue,green,pink,purple,orange,red,teal,indigo',
             'is_pinned' => 'nullable|boolean',
         ]);
 
