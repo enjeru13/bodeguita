@@ -31,6 +31,8 @@ interface Sale {
     paid_amount_usd: number;
     total_ves: number;
     paid_amount_ves: number;
+    exchange_rate_ves: number;
+    exchange_rate_cop: number;
     customer: { name: string } | null;
 }
 
@@ -82,10 +84,15 @@ export function DebtPaymentModal({ sale, isOpen, onClose }: Props) {
 
     if (!sale) return null;
 
-    // Calcular deuda restante para mostrarla visualmente
-    const debtCOP = sale.total_cop - sale.paid_amount_cop;
-    const debtUSD = sale.total_usd - sale.paid_amount_usd;
-    const debtVES = sale.total_ves - sale.paid_amount_ves;
+    // Calcular deuda restante real considerando pagos en cualquier moneda
+    const totalPaidUSD =
+        sale.paid_amount_usd +
+        sale.paid_amount_cop / (sale.exchange_rate_cop || 1) +
+        sale.paid_amount_ves / (sale.exchange_rate_ves || 1);
+
+    const debtUSD = Math.max(0, sale.total_usd - totalPaidUSD);
+    const debtCOP = Math.round(debtUSD * (sale.exchange_rate_cop || 0));
+    const debtVES = debtUSD * (sale.exchange_rate_ves || 0);
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>

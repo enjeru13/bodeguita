@@ -6,7 +6,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { Receipt, Calendar, User, Package, Calculator } from 'lucide-react';
+import { Receipt, Calendar, User, Package, Calculator, Banknote } from 'lucide-react';
 
 interface SaleItem {
     id: number;
@@ -16,6 +16,13 @@ interface SaleItem {
     quantity: number;
     price_usd: number;
     subtotal_usd: number;
+}
+
+interface Payment {
+    id: number;
+    amount: number;
+    currency: 'COP' | 'VES' | 'USD';
+    created_at: string;
 }
 
 interface Sale {
@@ -29,9 +36,12 @@ interface Sale {
     paid_amount_usd: number;
     paid_amount_ves: number;
     paid_amount_cop: number;
+    exchange_rate_ves: number;
+    exchange_rate_cop: number;
     status: string;
     created_at: string;
     items: SaleItem[];
+    payments?: Payment[];
 }
 
 interface Props {
@@ -174,6 +184,51 @@ export function SaleDetailModal({ sale, isOpen, onClose }: Props) {
                                 </div>
                             </div>
                         )}
+                    </div>
+
+                    {/* Historial de Pagos */}
+                    <div className="mt-6">
+                        <div className="flex items-center gap-2 mb-3">
+                            <Banknote className="h-4 w-4 text-emerald-500" />
+                            <h3 className="text-sm font-black uppercase tracking-widest text-zinc-800 dark:text-zinc-200">
+                                Historial de Pagos
+                            </h3>
+                        </div>
+
+                        <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+                            {sale.payments && sale.payments.length > 0 ? (
+                                sale.payments.map((payment) => (
+                                    <div
+                                        key={payment.id}
+                                        className="flex items-center justify-between p-3 rounded-xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900/50"
+                                    >
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] font-black text-zinc-400 uppercase">
+                                                {new Date(payment.created_at).toLocaleDateString('es-ES', {
+                                                    day: 'numeric',
+                                                    month: 'short',
+                                                    year: 'numeric',
+                                                    hour: '2-digit',
+                                                    minute: '2-digit',
+                                                })}
+                                            </span>
+                                            <span className="text-xs font-bold text-zinc-500">
+                                                Abono en {payment.currency}
+                                            </span>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="text-sm font-black text-emerald-600">
+                                                + {formatCurrency(payment.amount, payment.currency)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="p-4 text-center rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800 text-[10px] font-bold text-zinc-400 uppercase italic">
+                                    No hay abonos registrados para esta venta
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 

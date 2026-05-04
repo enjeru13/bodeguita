@@ -42,17 +42,30 @@ class SalesController extends Controller
             $sale->paid_amount_ves += $amount;
         }
 
-        // 2. Verificar si la deuda se ha saldado
-        // Usamos una pequeña tolerancia para evitar problemas de decimales
-        $isPaidCOP = $sale->paid_amount_cop >= ($sale->total_cop - 50);
-        $isPaidUSD = $sale->paid_amount_usd >= ($sale->total_usd - 0.1);
+        // 2. Verificar si la deuda se ha saldado (Lógica multi-moneda)
+        // Calculamos el equivalente total pagado en USD usando las tasas de la venta
+        $totalPaidUSD = $sale->paid_amount_usd +
+            ($sale->paid_amount_cop / ($sale->exchange_rate_cop ?: 1)) +
+            ($sale->paid_amount_ves / ($sale->exchange_rate_ves ?: 1));
 
-        if ($isPaidCOP || $isPaidUSD) {
-            // Cambiamos el estado a 'completed' para que salga de la lista de pendientes
+        // Consideramos saldada si el pago equivalente es >= al total en USD (con margen de 0.01 USD)
+        if ($totalPaidUSD >= ($sale->total_usd - 0.01)) {
             $sale->status = 'completed';
+            
+            // Para consistencia visual, si está saldada, aseguramos que los campos reflejen el total
+            // Esto evita que en el resumen financiero siga apareciendo una micro-deuda por decimales
+            $sale->paid_amount_cop = $sale->total_cop;
+            $sale->paid_amount_usd = $sale->total_usd;
+            $sale->paid_amount_ves = $sale->total_ves;
         }
 
         $sale->save();
+
+        $sale->payments()->create([
+            'amount' => $amount,
+            'currency' => $currency,
+            'exchange_rate' => ($currency === 'COP') ? $sale->exchange_rate_cop : (($currency === 'VES') ? $sale->exchange_rate_ves : 1),
+        ]);
 
         return redirect()->back()->with('success', 'Abono registrado correctamente.');
     }
@@ -87,39 +100,55 @@ class SalesController extends Controller
                 break;
             }
 
-            // Calcular la deuda restante según la moneda
-            $totalField = 'total_' . strtolower($currency);
-            $paidField = 'paid_amount_' . strtolower($currency);
+            // Calcular el equivalente total pagado en USD actualmente
+            $currentPaidUSD = $sale->paid_amount_usd +
+                ($sale->paid_amount_cop / ($sale->exchange_rate_cop ?: 1)) +
+                ($sale->paid_amount_ves / ($sale->exchange_rate_ves ?: 1));
 
-            $debt = $sale->$totalField - $sale->$paidField;
+            $debtUSD = $sale->total_usd - $currentPaidUSD;
 
-            if ($debt <= 0) {
-                continue; // Esta venta ya está pagada en esta moneda
+            if ($debtUSD <= 0.01) {
+                continue; // Ya está saldada
             }
 
-            if ($remainingAmount >= $debt) {
-                // Pagar completamente esta venta
-                $sale->$paidField += $debt;
-                $remainingAmount -= $debt;
+            // Convertimos la deuda USD a la moneda del pago actual
+            // Usamos la tasa de la venta para mantener consistencia con los totales guardados
+            $rate = ($currency === 'COP') ? $sale->exchange_rate_cop : 
+                    (($currency === 'VES') ? $sale->exchange_rate_ves : 1);
+            
+            $debtInPaymentCurrency = $debtUSD * $rate;
 
-                // Verificar si está completamente pagada en todas las monedas
-                $isPaidCOP = $sale->paid_amount_cop >= ($sale->total_cop - 50);
-                $isPaidUSD = $sale->paid_amount_usd >= ($sale->total_usd - 0.1);
-                $isPaidVES = $sale->paid_amount_ves >= ($sale->total_ves - 50);
+            if ($remainingAmount >= ($debtInPaymentCurrency - 0.01)) {
+                // Pagar completamente esta deuda
+                $paidField = 'paid_amount_' . strtolower($currency);
+                $sale->$paidField += ($currency === 'COP') ? round($debtInPaymentCurrency) : $debtInPaymentCurrency;
+                $remainingAmount -= $debtInPaymentCurrency;
 
-                if ($isPaidCOP || $isPaidUSD || $isPaidVES) {
-                    $sale->status = 'completed';
-                    $salesPaid++;
-                }
+                $sale->status = 'completed';
+                // Sincronizamos totales para evitar residuos decimales
+                $sale->paid_amount_cop = $sale->total_cop;
+                $sale->paid_amount_usd = $sale->total_usd;
+                $sale->paid_amount_ves = $sale->total_ves;
+                $salesPaid++;
             } else {
                 // Pago parcial
+                $paidField = 'paid_amount_' . strtolower($currency);
                 $sale->$paidField += $remainingAmount;
                 $remainingAmount = 0;
                 $salesPartiallyPaid++;
             }
 
+            // Registrar en el historial de pagos (Calculamos el delta pagado en este paso)
+            $sale->payments()->create([
+                'amount' => $sale->$paidField - $sale->getOriginal($paidField),
+                'currency' => $currency,
+                'exchange_rate' => $rate,
+            ]);
+
             $sale->save();
         }
+
+
 
         // Mensaje de éxito personalizado
         $message = "Pago procesado correctamente. ";
@@ -182,6 +211,29 @@ class SalesController extends Controller
                 $sale->items()->save($saleItem);
 
                 $product->decrement('stock', $itemData['quantity']);
+            }
+
+            // Registrar pagos iniciales si los hay
+            if ($sale->paid_amount_usd > 0) {
+                $sale->payments()->create([
+                    'amount' => $sale->paid_amount_usd,
+                    'currency' => 'USD',
+                    'exchange_rate' => 1,
+                ]);
+            }
+            if ($sale->paid_amount_cop > 0) {
+                $sale->payments()->create([
+                    'amount' => $sale->paid_amount_cop,
+                    'currency' => 'COP',
+                    'exchange_rate' => $sale->exchange_rate_cop,
+                ]);
+            }
+            if ($sale->paid_amount_ves > 0) {
+                $sale->payments()->create([
+                    'amount' => $sale->paid_amount_ves,
+                    'currency' => 'VES',
+                    'exchange_rate' => $sale->exchange_rate_ves,
+                ]);
             }
 
             return redirect()->back()->with('success', 'Venta procesada correctamente.');

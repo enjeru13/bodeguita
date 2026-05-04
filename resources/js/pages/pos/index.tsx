@@ -3,6 +3,8 @@ import { type BreadcrumbItem } from '@/types';
 import { Head, router } from '@inertiajs/react';
 import {
     CheckCircle2,
+    ChevronLeft,
+    ChevronRight,
     Clock,
     Minus,
     Plus,
@@ -32,7 +34,6 @@ import {
     SheetDescription,
     SheetHeader,
     SheetTitle,
-    SheetTrigger,
 } from '@/components/ui/sheet';
 
 interface Product {
@@ -76,10 +77,13 @@ export default function PosIndex({
 }) {
     const [searchTerm, setSearchTerm] = useState('');
     const [cart, setCart] = useState<CartItem[]>([]);
-    const [selectedCustomerId, setSelectedCustomerId] = useState<string>('0');
+    const [selectedCustomerId, setSelectedCustomerId] = useState('0');
+    const [customerSearch, setCustomerSearch] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
     const [isCredit, setIsCredit] = useState(false);
     const [paidAmount, setPaidAmount] = useState<string>('0');
+    const [showPaymentOptions, setShowPaymentOptions] = useState(false);
+    const [isCartOpen, setIsCartOpen] = useState(false);
 
     const filteredProducts = products.filter(
         (product) =>
@@ -128,16 +132,31 @@ export default function PosIndex({
         );
     };
 
+    const clearCart = () => {
+        setCart([]);
+        toast.success('Carrito vaciado');
+    };
+
     const totals = useMemo(() => {
         const usd = cart.reduce(
             (acc, item) => acc + item.selling_price * item.quantity,
             0,
         );
+        // Calculamos el COP sumando los subtotales redondeados de cada item para evitar inconsistencias visuales
+        const cop = cart.reduce(
+            (acc, item) =>
+                acc +
+                Math.round(
+                    item.selling_price *
+                        item.quantity *
+                        (exchangeRates.COP || 0),
+                ),
+            0,
+        );
         return {
             usd: usd,
             ves: usd * (exchangeRates.VES || 0),
-            // AQUI ESTA LA CLAVE: Math.round() para forzar el entero más cercano (2000 en vez de 1999.99)
-            cop: Math.round(usd * (exchangeRates.COP || 0)),
+            cop: cop,
         };
     }, [cart, exchangeRates]);
 
@@ -194,9 +213,152 @@ export default function PosIndex({
         });
     };
 
+    const paymentSection = (
+        <div className="space-y-4">
+            <div className="space-y-2">
+                <div className="flex items-center justify-between rounded-xl border border-dashed border-zinc-200 bg-white p-2.5 dark:border-zinc-700 dark:bg-zinc-800">
+                    <span className="text-[10px] font-black tracking-widest text-muted-foreground uppercase">
+                        Base USD:
+                    </span>
+                    <span className="font-mono text-sm font-black">
+                        ${totals.usd.toFixed(2)}
+                    </span>
+                </div>
+                <div className="flex items-center justify-between p-1 text-[10px] font-bold tracking-widest text-blue-600/70 uppercase dark:text-blue-400/70">
+                    <span>Bs. Referencial:</span>
+                    <span className="font-mono">
+                        Bs.{' '}
+                        {totals.ves.toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                        })}
+                    </span>
+                </div>
+            </div>
+
+            <div className="space-y-4 border-t border-zinc-200 pt-2 dark:border-zinc-800">
+                <div className="flex items-center rounded-xl border border-indigo-100/50 bg-indigo-50/50 p-3 dark:border-indigo-900/20 dark:bg-indigo-900/10">
+                    <Checkbox
+                        id="isCredit"
+                        checked={isCredit}
+                        onCheckedChange={(checked) => {
+                            setIsCredit(!!checked);
+                            if (checked) setPaidAmount('0');
+                        }}
+                        className="h-5 w-5 rounded-md border-indigo-300 data-[state=checked]:bg-indigo-600"
+                    />
+                    <Label
+                        htmlFor="isCredit"
+                        className="ml-3 cursor-pointer text-[10px] font-black tracking-widest text-indigo-700 uppercase dark:text-indigo-400"
+                    >
+                        Venta a Crédito / Abonos
+                    </Label>
+                </div>
+
+                <div className="animate-in space-y-2 duration-200 fade-in slide-in-from-top-1">
+                    <Label className="ml-1 text-[10px] font-black tracking-widest text-muted-foreground uppercase">
+                        {isCredit
+                            ? 'Abono / Pago Inicial (COP)'
+                            : 'Efectivo Recibido (COP)'}
+                    </Label>
+                    <Input
+                        type="number"
+                        value={paidAmount}
+                        onChange={(e) => setPaidAmount(e.target.value)}
+                        className="h-12 rounded-xl border-dashed bg-white font-mono text-lg font-black text-emerald-600 dark:bg-zinc-800"
+                        placeholder="0"
+                    />
+
+                    <div className="grid grid-cols-3 gap-1.5 pt-1 sm:grid-cols-6">
+                        {[2000, 4000, 6000, 8000, 10000, 12000].map(
+                            (amount) => (
+                                <button
+                                    key={amount}
+                                    type="button"
+                                    onClick={() =>
+                                        setPaidAmount(amount.toString())
+                                    }
+                                    className="flex h-10 items-center justify-center rounded-lg border border-zinc-200 bg-white text-xs font-black transition-all hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 dark:border-zinc-700 dark:bg-zinc-800 dark:hover:bg-emerald-900/20"
+                                >
+                                    {amount / 1000}k
+                                </button>
+                            ),
+                        )}
+                    </div>
+
+                    <div className="flex items-center justify-between px-1 text-[10px] font-bold">
+                        {parseFloat(paidAmount || '0') > totals.cop ? (
+                            <>
+                                <span className="text-emerald-600 uppercase">
+                                    Cambio / Vuelto:
+                                </span>
+                                <span className="text-sm text-emerald-600">
+                                    {(
+                                        parseFloat(paidAmount || '0') -
+                                        totals.cop
+                                    ).toLocaleString()}{' '}
+                                    COP
+                                </span>
+                            </>
+                        ) : (
+                            <>
+                                <span className="text-muted-foreground uppercase">
+                                    {isCredit
+                                        ? 'Deuda Restante:'
+                                        : 'Falta por pagar:'}
+                                </span>
+                                <span
+                                    className={
+                                        isCredit
+                                            ? 'text-red-500'
+                                            : 'text-amber-500'
+                                    }
+                                >
+                                    {(
+                                        totals.cop -
+                                        parseFloat(paidAmount || '0')
+                                    ).toLocaleString()}{' '}
+                                    COP
+                                </span>
+                            </>
+                        )}
+                    </div>
+                </div>
+
+                <Button
+                    className={`h-16 w-full gap-3 rounded-2xl border-none text-lg font-black tracking-widest text-white shadow-xl transition-all hover:scale-[1.02] ${isCredit ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700'}`}
+                    disabled={
+                        cart.length === 0 ||
+                        isProcessing ||
+                        (isCredit && selectedCustomerId === '0')
+                    }
+                    onClick={handleCheckout}
+                >
+                    {isProcessing ? (
+                        'PROCESANDO...'
+                    ) : (
+                        <>
+                            {isCredit ? (
+                                <Clock className="h-6 w-6" />
+                            ) : (
+                                <CheckCircle2 className="h-6 w-6" />
+                            )}
+                            {isCredit ? 'REGISTRAR CRÉDITO' : 'FINALIZAR VENTA'}
+                        </>
+                    )}
+                </Button>
+                {isCredit && selectedCustomerId === '0' && (
+                    <p className="text-center text-[10px] font-black tracking-widest text-red-500 uppercase opacity-80">
+                        Seleccione un cliente para crédito
+                    </p>
+                )}
+            </div>
+        </div>
+    );
+
     const cartContent = (
         <div className="flex h-full flex-col border-l bg-white pt-8 lg:pt-0 dark:bg-zinc-900">
-            <CardHeader className="shrink-0 border-b bg-zinc-50/50 p-6 mt-3 dark:bg-zinc-800/20">
+            <CardHeader className="mt-3 shrink-0 border-b bg-zinc-50/50 p-6 dark:bg-zinc-800/20">
                 <div className="flex items-center justify-between">
                     <div>
                         <CardTitle className="flex items-center gap-2 text-lg font-black tracking-tight">
@@ -207,45 +369,86 @@ export default function PosIndex({
                             Orden de venta
                         </p>
                     </div>
-                    <Badge className="flex h-7 items-center justify-center rounded-lg border-none bg-indigo-600 px-3 font-black text-white">
-                        {cart.reduce((acc, item) => acc + item.quantity, 0)}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                        {cart.length > 0 && (
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={clearCart}
+                                className="h-8 w-8 text-zinc-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/20"
+                            >
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                        )}
+                        <Badge className="flex h-7 items-center justify-center rounded-lg border-none bg-indigo-600 px-3 font-black text-white">
+                            {cart.reduce((acc, item) => acc + item.quantity, 0)}
+                        </Badge>
+                    </div>
                 </div>
             </CardHeader>
 
-            <div className="shrink-0 border-b bg-white p-6 dark:bg-zinc-900">
-                <Label className="mb-2 block text-[10px] font-black tracking-widest text-muted-foreground uppercase">
-                    Cliente Responsable
-                </Label>
-                <Select
-                    value={selectedCustomerId}
-                    onValueChange={setSelectedCustomerId}
-                >
-                    <SelectTrigger className="h-11 rounded-xl border-dashed focus:ring-indigo-500/30">
-                        <SelectValue placeholder="Seleccionar cliente" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl border-none shadow-2xl">
-                        <SelectItem
-                            value="0"
-                            className="text-xs font-bold uppercase"
-                        >
-                            Cliente Eventual (Mostrador)
-                        </SelectItem>
-                        {customers.map((customer) => (
+            {!showPaymentOptions && (
+                <div className="shrink-0 border-b bg-white p-6 dark:bg-zinc-900">
+                    <Label className="mb-2 block text-[10px] font-black tracking-widest text-muted-foreground uppercase">
+                        Cliente Responsable
+                    </Label>
+                    <Select
+                        value={selectedCustomerId}
+                        onValueChange={setSelectedCustomerId}
+                    >
+                        <SelectTrigger className="h-11 rounded-xl border-dashed focus:ring-indigo-500/30">
+                            <SelectValue placeholder="Seleccionar cliente" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl border-none shadow-2xl">
+                            <div className="sticky top-0 z-10 bg-white p-2 dark:bg-zinc-900">
+                                <div className="relative">
+                                    <Search className="absolute top-1/2 left-2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
+                                    <Input
+                                        placeholder="Buscar..."
+                                        value={customerSearch}
+                                        onChange={(e) =>
+                                            setCustomerSearch(e.target.value)
+                                        }
+                                        className="h-8 rounded-lg pl-7 text-[10px]"
+                                        onKeyDown={(e) => e.stopPropagation()}
+                                    />
+                                </div>
+                            </div>
                             <SelectItem
-                                key={customer.id}
-                                value={customer.id.toString()}
-                                className="text-xs font-bold"
+                                value="0"
+                                className="text-xs font-bold uppercase"
                             >
-                                {customer.name}{' '}
-                                {customer.identity_document
-                                    ? `— ${customer.identity_document}`
-                                    : ''}
+                                Cliente Eventual (Mostrador)
                             </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-            </div>
+                            {customers
+                                .filter(
+                                    (c) =>
+                                        c.name
+                                            .toLowerCase()
+                                            .includes(
+                                                customerSearch.toLowerCase(),
+                                            ) ||
+                                        (c.identity_document &&
+                                            c.identity_document.includes(
+                                                customerSearch,
+                                            )),
+                                )
+                                .map((customer) => (
+                                    <SelectItem
+                                        key={customer.id}
+                                        value={customer.id.toString()}
+                                        className="text-xs font-bold"
+                                    >
+                                        {customer.name}{' '}
+                                        {customer.identity_document
+                                            ? `— ${customer.identity_document}`
+                                            : ''}
+                                    </SelectItem>
+                                ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+            )}
 
             <div className="custom-scrollbar flex-1 space-y-3 overflow-y-auto p-4">
                 {cart.map((item) => (
@@ -258,7 +461,6 @@ export default function PosIndex({
                                 {item.name}
                             </div>
                             <div className="mt-0.5 text-[10px] font-bold tracking-tight text-muted-foreground uppercase">
-                                {/* Visualizacion en el item del carrito redondeada */}
                                 {Math.round(
                                     item.selling_price *
                                         (exchangeRates.COP || 0),
@@ -288,22 +490,25 @@ export default function PosIndex({
                                     <Plus className="h-3 w-3" />
                                 </Button>
                             </div>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-zinc-300 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/20"
+                                onClick={() => removeFromCart(item.id)}
+                            >
+                                <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
                             <div className="flex items-center gap-2">
                                 <div className="text-sm font-black text-indigo-600 dark:text-indigo-400">
-                                    {/* Calculo visual del subtotal por item redondeado */}
-                                    $
                                     {Math.round(
                                         item.selling_price *
                                             item.quantity *
                                             (exchangeRates.COP || 0),
                                     ).toLocaleString()}
+                                    <span className="ml-1 text-[10px] opacity-70">
+                                        COP
+                                    </span>
                                 </div>
-                                <button
-                                    className="text-zinc-300 transition-colors hover:text-red-500"
-                                    onClick={() => removeFromCart(item.id)}
-                                >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                </button>
                             </div>
                         </div>
                     </div>
@@ -318,109 +523,39 @@ export default function PosIndex({
                 )}
             </div>
 
-            <div className="shrink-0 space-y-4 border-t bg-zinc-50/50 p-6 dark:bg-zinc-900">
-                <div className="space-y-2">
-                    <div className="mb-2 flex items-baseline justify-between">
-                        <span className="text-[10px] font-black tracking-widest text-muted-foreground uppercase">
-                            Monto Total COP
-                        </span>
-                        <span className="font-mono text-3xl font-black text-emerald-600 dark:text-emerald-400">
-                            {totals.cop.toLocaleString()}
-                        </span>
-                    </div>
-                    <div className="flex items-center justify-between rounded-xl border border-dashed border-zinc-200 bg-white p-2.5 dark:border-zinc-700 dark:bg-zinc-800">
-                        <span className="text-[10px] font-black tracking-widest text-muted-foreground uppercase">
-                            Base USD:
-                        </span>
-                        <span className="font-mono text-sm font-black">
-                            ${totals.usd.toFixed(2)}
-                        </span>
-                    </div>
-                    <div className="flex items-center justify-between p-1 text-[10px] font-bold tracking-widest text-blue-600/70 uppercase dark:text-blue-400/70">
-                        <span>Bs. Referencial:</span>
-                        <span className="font-mono">
-                            Bs.{' '}
-                            {totals.ves.toLocaleString(undefined, {
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2,
-                            })}
-                        </span>
-                    </div>
-                </div>
-
-                <div className="space-y-4 border-t border-zinc-200 pt-2 dark:border-zinc-800">
-                    <div className="flex items-center rounded-xl border border-indigo-100/50 bg-indigo-50/50 p-3 dark:border-indigo-900/20 dark:bg-indigo-900/10">
-                        <Checkbox
-                            id="isCredit"
-                            checked={isCredit}
-                            onCheckedChange={(checked) => {
-                                setIsCredit(!!checked);
-                                if (checked) setPaidAmount('0');
-                            }}
-                            className="h-5 w-5 rounded-md border-indigo-300 data-[state=checked]:bg-indigo-600"
-                        />
-                        <Label
-                            htmlFor="isCredit"
-                            className="ml-3 cursor-pointer text-[10px] font-black tracking-widest text-indigo-700 uppercase dark:text-indigo-400"
-                        >
-                            Venta a Crédito / Abonos
-                        </Label>
-                    </div>
-
-                    {isCredit && (
-                        <div className="animate-in space-y-2 duration-200 fade-in slide-in-from-top-1">
-                            <Label className="ml-1 text-[10px] font-black tracking-widest text-muted-foreground uppercase">
-                                Monto Recibido hoy (COP)
-                            </Label>
-                            <Input
-                                type="number"
-                                value={paidAmount}
-                                onChange={(e) => setPaidAmount(e.target.value)}
-                                className="h-12 rounded-xl border-dashed bg-white font-mono text-lg font-black text-emerald-600 dark:bg-zinc-800"
-                                placeholder="0"
-                            />
-                            <div className="flex items-center justify-between px-1 text-[10px] font-bold">
-                                <span className="text-muted-foreground uppercase">
-                                    Deuda Restante:
-                                </span>
-                                <span className="text-red-500">
-                                    {(
-                                        totals.cop -
-                                        parseFloat(paidAmount || '0')
-                                    ).toLocaleString()}{' '}
-                                    COP
-                                </span>
-                            </div>
+            <div className="shrink-0 space-y-3 border-t bg-zinc-50/50 p-4 lg:p-6 dark:bg-zinc-900">
+                {!showPaymentOptions ? (
+                    <>
+                        <div className="flex items-baseline justify-between">
+                            <span className="text-[10px] font-black tracking-widest text-muted-foreground uppercase">
+                                Total a Pagar
+                            </span>
+                            <span className="font-mono text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                                {totals.cop.toLocaleString()} COP
+                            </span>
                         </div>
-                    )}
-                </div>
-
-                <Button
-                    className={`h-16 w-full gap-3 rounded-2xl border-none text-lg font-black tracking-widest text-white shadow-xl transition-all hover:scale-[1.02] ${isCredit ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700'}`}
-                    disabled={
-                        cart.length === 0 ||
-                        isProcessing ||
-                        (isCredit && selectedCustomerId === '0')
-                    }
-                    onClick={handleCheckout}
-                >
-                    {isProcessing ? (
-                        'PROCESANDO...'
-                    ) : (
-                        <>
-                            {isCredit ? (
-                                <Clock className="h-6 w-6" />
-                            ) : (
-                                <CheckCircle2 className="h-6 w-6" />
-                            )}
-                            {isCredit ? 'REGISTRAR CRÉDITO' : 'FINALIZAR VENTA'}
-                        </>
-                    )}
-                </Button>
-                {isCredit && selectedCustomerId === '0' && (
-                    <p className="text-center text-[10px] font-black tracking-widest text-red-500 uppercase opacity-80">
-                        Seleccione un cliente para crédito
-                    </p>
+                        <Button
+                            className="h-14 w-full gap-2 rounded-2xl bg-indigo-600 text-lg font-black tracking-widest text-white shadow-lg lg:hidden"
+                            onClick={() => setShowPaymentOptions(true)}
+                            disabled={cart.length === 0}
+                        >
+                            CONTINUAR AL PAGO
+                            <ChevronRight className="h-5 w-5" />
+                        </Button>
+                        <div className="hidden lg:block">{paymentSection}</div>
+                    </>
+                ) : (
+                    <div className="animate-in duration-300 slide-in-from-right-5">
+                        <Button
+                            variant="ghost"
+                            className="mb-2 h-8 px-2 text-[10px] font-black tracking-widest text-zinc-400 uppercase hover:text-zinc-600"
+                            onClick={() => setShowPaymentOptions(false)}
+                        >
+                            <ChevronLeft className="mr-1 h-3 w-3" />
+                            Volver al Carrito
+                        </Button>
+                        {paymentSection}
+                    </div>
                 )}
             </div>
         </div>
@@ -529,53 +664,66 @@ export default function PosIndex({
                     {cartContent}
                 </div>
 
-                {/* Mobile Floating Cart Bar con Accesibilidad Corregida */}
-                <div className="fixed right-0 bottom-0 left-0 z-50 border-t bg-white p-4 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] lg:hidden dark:bg-zinc-900">
-                    <div className="flex items-center justify-between gap-4">
-                        <div className="flex flex-col">
-                            <span className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
-                                Total a Pagar
-                            </span>
-                            <span className="text-lg font-black text-green-700 dark:text-green-400">
-                                {totals.cop.toLocaleString()} COP
-                            </span>
-                        </div>
-                        <Sheet>
-                            <SheetTrigger asChild>
-                                <Button className="relative gap-2 bg-indigo-600 text-white hover:bg-indigo-700">
-                                    <ShoppingCart className="h-5 w-5" />
-                                    Ver Carrito
-                                    {cart.length > 0 && (
-                                        <Badge className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-red-500 p-0 text-white dark:border-zinc-900">
-                                            {cart.reduce(
-                                                (acc, item) =>
-                                                    acc + item.quantity,
-                                                0,
-                                            )}
-                                        </Badge>
-                                    )}
-                                </Button>
-                            </SheetTrigger>
-                            <SheetContent
-                                side="bottom"
-                                className="flex h-[90vh] flex-col overflow-hidden rounded-t-[2rem] p-0 sm:max-w-none"
-                            >
-                                {/* Encabezado Invisible para Accesibilidad */}
-                                <SheetHeader className="sr-only">
-                                    <SheetTitle>Carrito de Compras</SheetTitle>
-                                    <SheetDescription>
-                                        Resumen de productos seleccionados para
-                                        la venta actual
-                                    </SheetDescription>
-                                </SheetHeader>
+                <Sheet open={isCartOpen} onOpenChange={setIsCartOpen}>
+                    <SheetContent
+                        side="right"
+                        className="flex h-full w-full flex-col overflow-hidden p-0 sm:max-w-md"
+                    >
+                        {/* Encabezado Invisible para Accesibilidad */}
+                        <SheetHeader className="sr-only">
+                            <SheetTitle>Carrito de Compras</SheetTitle>
+                            <SheetDescription>
+                                Resumen de productos seleccionados para la venta
+                                actual
+                            </SheetDescription>
+                        </SheetHeader>
 
-                                <div className="flex-1 overflow-hidden ">
-                                    {cartContent}
+                        <div className="flex-1 overflow-hidden">
+                            {cartContent}
+                        </div>
+                    </SheetContent>
+                </Sheet>
+
+                {/* Barra Flotante para Móvil (Píldora) */}
+                {cart.length > 0 && (
+                    <div className="fixed right-6 bottom-6 left-6 z-50 animate-in slide-in-from-bottom-10 fade-in lg:hidden">
+                        <button
+                            onClick={() => setIsCartOpen(true)}
+                            className="flex w-full items-center justify-between gap-4 rounded-2xl bg-indigo-600 p-4 font-black text-white shadow-2xl shadow-indigo-500/50 transition-all active:scale-95"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 backdrop-blur-md">
+                                    <ShoppingCart className="h-5 w-5" />
                                 </div>
-                            </SheetContent>
-                        </Sheet>
+                                <div className="text-left">
+                                    <p className="text-[10px] font-bold tracking-widest uppercase opacity-80">
+                                        Tu Pedido
+                                    </p>
+                                    <p className="text-sm">
+                                        {cart.reduce(
+                                            (acc, item) => acc + item.quantity,
+                                            0,
+                                        )}{' '}
+                                        productos
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <div className="text-right">
+                                    <p className="text-[10px] font-bold tracking-widest uppercase opacity-80">
+                                        Total COP
+                                    </p>
+                                    <p className="text-lg leading-tight">
+                                        {totals.cop.toLocaleString()}
+                                    </p>
+                                </div>
+                                <div className="ml-2 flex h-8 w-8 items-center justify-center rounded-lg bg-white/20">
+                                    <ChevronRight className="h-4 w-4" />
+                                </div>
+                            </div>
+                        </button>
                     </div>
-                </div>
+                )}
             </div>
         </AppLayout>
     );

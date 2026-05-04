@@ -4,9 +4,11 @@ import { cn } from '@/lib/utils';
 import { type BreadcrumbItem } from '@/types';
 import { Head, useForm } from '@inertiajs/react';
 import {
+    AlertTriangle,
     ArrowUpRight,
     Banknote,
     Clock,
+    Download,
     History as HistoryIcon,
     LayoutDashboard,
     RefreshCw,
@@ -17,6 +19,8 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { FinancialChart } from '@/components/financial/financial-chart';
+import * as XLSX from 'xlsx';
 
 import { DebtPaymentModal } from '@/components/financial/debt-payment-modal';
 import { DebtorPaymentModal } from '@/components/financial/debtor-payment-modal';
@@ -55,6 +59,8 @@ interface Sale {
     paid_amount_usd: number;
     paid_amount_ves: number;
     paid_amount_cop: number;
+    exchange_rate_ves: number;
+    exchange_rate_cop: number;
     status: string;
     created_at: string;
     items: SaleItem[];
@@ -66,6 +72,20 @@ interface Debtor {
     total_debt_cop: number;
     total_debt_usd: number;
     sale_count: number;
+}
+
+interface PaymentRecord {
+    id: number;
+    sale_id: number;
+    amount: number;
+    currency: 'COP' | 'USD' | 'VES';
+    exchange_rate: number;
+    created_at: string;
+    sale: {
+        customer: {
+            name: string;
+        } | null;
+    };
 }
 
 interface Summary {
@@ -82,6 +102,8 @@ interface Summary {
     total_debt_cop: number;
     total_debt_usd: number;
     net_worth_cop: number;
+    low_stock_count: number;
+    low_stock_products: any[];
 }
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -96,14 +118,23 @@ export default function FinancialIndex({
     exchangeRates,
     summary,
     debtors,
+    recentPayments,
+    chartData,
 }: {
     sales: Sale[];
     exchangeRates: ExchangeRate[];
     summary: Summary;
     debtors: Debtor[];
+    recentPayments: PaymentRecord[];
+    chartData: any[];
 }) {
     const [searchTerm, setSearchTerm] = useState('');
-    const [activeTab, setActiveTab] = useState<'sales' | 'debtors'>('sales');
+    const [activeTab, setActiveTab] = useState<'sales' | 'debtors' | 'payments'>(
+        'sales',
+    );
+
+    // --- ESTADO PARA FILTRO DE DEUDORES ---
+    const [debtorSort, setDebtorSort] = useState<'name' | 'amount'>('amount');
 
     // --- ESTADO PARA EL MODAL DE PAGO ---
     const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
@@ -116,6 +147,57 @@ export default function FinancialIndex({
     // --- ESTADO PARA EL MODAL DE DETALLE DE VENTA ---
     const [viewingSale, setViewingSale] = useState<Sale | null>(null);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+
+    const exportToExcel = () => {
+        // 1. Hoja de Ventas Detallada (Usando lista filtrada si hay búsqueda)
+        const salesToExport = searchTerm ? filteredSales : sales;
+        const salesData = salesToExport.map((sale: any) => ({
+            'Fecha y Hora': new Date(sale.created_at).toLocaleString(),
+            'Cliente': sale.customer?.name || 'Cliente Eventual',
+            'Total USD': sale.total_usd,
+            'Total COP': sale.total_cop,
+            'Pagado COP': sale.paid_amount_cop,
+            'Deuda COP': Math.max(0, sale.total_cop - sale.paid_amount_cop),
+            'Estado': sale.status === 'paid' ? 'PAGADO' : 'PENDIENTE'
+        }));
+
+        // 2. Hoja de Deudores
+        const debtorsToExport = searchTerm ? filteredDebtors : debtors;
+        const debtorsData = debtorsToExport.map((debtor: any) => ({
+            'Cliente': debtor.customer_name,
+            'Documento': debtor.identity_document || 'N/A',
+            'Ventas Pendientes': debtor.sale_count,
+            'Deuda Total COP': debtor.total_debt_cop,
+            'Deuda Total USD': debtor.total_debt_usd
+        }));
+
+        // 3. Hoja de Inventario Crítico
+        const inventoryData = (summary.low_stock_products || []).map((product: any) => ({
+            'Producto': product.name,
+            'Código/SKU': product.sku || 'N/A',
+            'Stock Actual': product.stock,
+            'Precio Venta USD': product.selling_price
+        }));
+
+        // Crear Libro de Excel
+        const wb = XLSX.utils.book_new();
+        
+        // Agregar Hojas
+        const wsSales = XLSX.utils.json_to_sheet(salesData);
+        XLSX.utils.book_append_sheet(wb, wsSales, 'Historial de Ventas');
+
+        const wsDebtors = XLSX.utils.json_to_sheet(debtorsData);
+        XLSX.utils.book_append_sheet(wb, wsDebtors, 'Lista de Deudores');
+
+        if (inventoryData.length > 0) {
+            const wsInventory = XLSX.utils.json_to_sheet(inventoryData);
+            XLSX.utils.book_append_sheet(wb, wsInventory, 'Productos por Agotarse');
+        }
+
+        // Descargar Archivo
+        XLSX.writeFile(wb, `BODEGUITA_REPORTE_${new Date().toISOString().split('T')[0]}.xlsx`);
+        toast.success('Reporte Excel generado con éxito');
+    };
 
     const handleOpenPayment = (sale: Sale) => {
         setSelectedSale(sale);
@@ -159,10 +241,23 @@ export default function FinancialIndex({
         return matchesCustomer || matchesId;
     });
 
-    // --- LOGICA DE FILTRADO PARA DEUDORES (NUEVO) ---
-    const filteredDebtors = debtors.filter((debtor) =>
-        debtor.customer_name.toLowerCase().includes(searchTerm.toLowerCase()),
-    );
+    // --- LOGICA DE FILTRADO Y ORDENADO PARA DEUDORES ---
+    const filteredDebtors = debtors
+        .filter((debtor) =>
+            debtor.customer_name.toLowerCase().includes(searchTerm.toLowerCase()),
+        )
+        .sort((a, b) => {
+            if (debtorSort === 'name') {
+                return a.customer_name.localeCompare(b.customer_name);
+            }
+            return b.total_debt_usd - a.total_debt_usd;
+        });
+
+    const filteredPayments = recentPayments.filter((p) => {
+        const customerName = p.sale.customer?.name || 'cliente eventual';
+        return customerName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+               p.sale_id.toString().includes(searchTerm);
+    });
 
     const formatCurrency = (
         amount: number,
@@ -345,51 +440,52 @@ export default function FinancialIndex({
                         </CardContent>
                     </Card>
 
-                    {/* Other Today Ref */}
-                    <Card className="border-none bg-white shadow-md dark:bg-zinc-900">
+                    {/* Stock Alert Card */}
+                    <Card className={cn(
+                        "border-none shadow-md",
+                        summary.low_stock_count > 0 
+                            ? "bg-red-50 dark:bg-red-950/20" 
+                            : "bg-white dark:bg-zinc-900"
+                    )}>
                         <CardHeader className="pb-1">
-                            <CardTitle className="text-[10px] font-black tracking-widest text-blue-600 uppercase dark:text-blue-400">
-                                Ingresos Hoy (VES/USD)
+                            <CardTitle className={cn(
+                                "text-[10px] font-black tracking-widest uppercase",
+                                summary.low_stock_count > 0 ? "text-red-600" : "text-zinc-500"
+                            )}>
+                                Alertas de Stock
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-1">
+                        <CardContent>
                             <div className="flex items-center justify-between">
-                                <span className="text-xs font-bold text-blue-700 dark:text-blue-400">
-                                    Bs.{' '}
-                                    {formatCurrency(
-                                        summary.today_total_ves,
-                                        'VES',
-                                    )}
+                                <span className={cn(
+                                    "text-lg font-black",
+                                    summary.low_stock_count > 0 ? "text-red-700 dark:text-red-400" : "text-zinc-900 dark:text-zinc-100"
+                                )}>
+                                    {summary.low_stock_count} <span className="text-xs font-bold uppercase">Productos Bajos</span>
                                 </span>
-                                <span className="font-mono text-[10px] text-muted-foreground">
-                                    VES
-                                </span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
-                                    {formatCurrency(
-                                        summary.today_total_usd,
-                                        'USD',
-                                    )}
-                                </span>
-                                <span className="font-mono text-[10px] text-muted-foreground">
-                                    USD
-                                </span>
+                                {summary.low_stock_count > 0 && (
+                                    <AlertTriangle className="h-5 w-5 text-red-500 animate-pulse" />
+                                )}
                             </div>
                         </CardContent>
                     </Card>
                 </div>
 
+                {/* Gráfica de Tendencia */}
+                <div className="grid grid-cols-1">
+                    <FinancialChart data={chartData} />
+                </div>
+
                 <div className="mt-4 flex flex-col gap-6">
                     {/* Tab Switcher */}
-                    <div className="mx-auto flex w-fit items-center gap-1 rounded-2xl bg-zinc-100 p-1.5 shadow-inner lg:mx-0 dark:bg-zinc-800/50">
+                    <div className="mx-auto flex w-fit flex-wrap justify-center items-center gap-1 rounded-2xl bg-zinc-100 p-1.5 shadow-inner lg:mx-0 dark:bg-zinc-800/50">
                         <button
                             onClick={() => {
                                 setActiveTab('sales');
                                 setSearchTerm(''); // Limpiar filtro al cambiar
                             }}
                             className={cn(
-                                'flex items-center gap-2 rounded-xl px-6 py-2.5 text-xs font-black tracking-widest uppercase transition-all',
+                                'flex items-center gap-2 rounded-xl px-4 md:px-6 py-2.5 text-[10px] md:text-xs font-black tracking-widest uppercase transition-all',
                                 activeTab === 'sales'
                                     ? 'scale-[1.02] bg-white text-zinc-900 shadow-md dark:bg-zinc-700 dark:text-zinc-50'
                                     : 'text-muted-foreground hover:text-foreground',
@@ -418,6 +514,33 @@ export default function FinancialIndex({
                                 </Badge>
                             )}
                         </button>
+                        <button
+                            onClick={() => {
+                                setActiveTab('payments');
+                                setSearchTerm('');
+                            }}
+                            className={cn(
+                                'flex items-center gap-2 rounded-xl px-6 py-2.5 text-xs font-black tracking-widest uppercase transition-all',
+                                activeTab === 'payments'
+                                    ? 'scale-[1.02] bg-white text-emerald-600 shadow-md dark:bg-zinc-700 dark:text-emerald-400'
+                                    : 'text-muted-foreground hover:text-foreground',
+                            )}
+                        >
+                            <Banknote className="h-3.5 w-3.5" />
+                            Pagos
+                        </button>
+
+                        <div className="ml-auto flex items-center gap-2 pr-2">
+                             <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={exportToExcel}
+                                className="h-9 gap-2 rounded-xl border-none bg-white px-4 text-[10px] font-black tracking-widest uppercase shadow-sm hover:bg-emerald-50 hover:text-emerald-600 dark:bg-zinc-800 dark:hover:bg-emerald-950/20"
+                             >
+                                <Download className="h-3.5 w-3.5" />
+                                Exportar Excel
+                             </Button>
+                        </div>
                     </div>
 
                     {activeTab === 'sales' ? (
@@ -618,7 +741,7 @@ export default function FinancialIndex({
                                 </div>
                             </CardContent>
                         </Card>
-                    ) : (
+                    ) : activeTab === 'debtors' ? (
                         <Card className="overflow-hidden border-none bg-white shadow-xl dark:bg-zinc-900">
                             {/* HEADER DE DEUDORES CON BUSCADOR */}
                             <CardHeader className="flex flex-col items-center justify-between space-y-4 border-b bg-zinc-50/30 p-6 md:flex-row md:space-y-0 dark:bg-zinc-800/10">
@@ -631,16 +754,44 @@ export default function FinancialIndex({
                                         por cliente.
                                     </p>
                                 </div>
-                                <div className="relative w-full md:w-80">
-                                    <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-                                    <Input
-                                        placeholder="Buscar deudor..."
-                                        className="h-11 rounded-xl border-dashed bg-white pl-10 text-sm transition-all focus-visible:ring-orange-500/30 dark:bg-zinc-800"
-                                        value={searchTerm}
-                                        onChange={(e) =>
-                                            setSearchTerm(e.target.value)
-                                        }
-                                    />
+                                <div className="flex w-full flex-col gap-3 md:w-auto md:flex-row md:items-center">
+                                    {/* Selector de Orden */}
+                                    <div className="flex items-center gap-1 rounded-xl bg-zinc-100 p-1 dark:bg-zinc-800">
+                                        <button
+                                            onClick={() => setDebtorSort('amount')}
+                                            className={cn(
+                                                "px-3 py-1.5 text-[10px] font-black uppercase tracking-tighter transition-all rounded-lg",
+                                                debtorSort === 'amount' 
+                                                    ? "bg-white text-orange-600 shadow-sm dark:bg-zinc-700" 
+                                                    : "text-zinc-400 hover:text-zinc-600"
+                                            )}
+                                        >
+                                            Mayor Deuda
+                                        </button>
+                                        <button
+                                            onClick={() => setDebtorSort('name')}
+                                            className={cn(
+                                                "px-3 py-1.5 text-[10px] font-black uppercase tracking-tighter transition-all rounded-lg",
+                                                debtorSort === 'name' 
+                                                    ? "bg-white text-orange-600 shadow-sm dark:bg-zinc-700" 
+                                                    : "text-zinc-400 hover:text-zinc-600"
+                                            )}
+                                        >
+                                            A - Z
+                                        </button>
+                                    </div>
+
+                                    <div className="relative w-full md:w-64">
+                                        <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                                        <Input
+                                            placeholder="Buscar deudor..."
+                                            className="h-11 rounded-xl border-dashed bg-white pl-10 text-sm transition-all focus-visible:ring-orange-500/30 dark:bg-zinc-800"
+                                            value={searchTerm}
+                                            onChange={(e) =>
+                                                setSearchTerm(e.target.value)
+                                            }
+                                        />
+                                    </div>
                                 </div>
                             </CardHeader>
 
@@ -725,6 +876,111 @@ export default function FinancialIndex({
                                                                 ? 'No se encontró ningún deudor con ese nombre.'
                                                                 : 'No hay deudas pendientes actualmente. ¡Todo al día!'}
                                                         </p>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    ) : (
+                        <Card className="overflow-hidden rounded-2xl border-none bg-white shadow-xl dark:bg-zinc-900">
+                            <CardHeader className="flex flex-col items-center justify-between space-y-4 border-b bg-zinc-50/30 p-6 md:flex-row md:space-y-0 dark:bg-zinc-800/10">
+                                <div className="space-y-1">
+                                    <CardTitle className="text-xl font-black tracking-tight">
+                                        Historial Global de Pagos
+                                    </CardTitle>
+                                    <p className="text-xs font-medium tracking-tight text-muted-foreground uppercase">
+                                        Cronología de abonos recibidos
+                                    </p>
+                                </div>
+                            </CardHeader>
+                            <CardContent className="p-0">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                        <thead>
+                                            <tr className="border-b bg-zinc-50/50 dark:bg-zinc-800/50">
+                                                <th className="px-6 py-4 text-left text-[10px] font-black tracking-widest text-muted-foreground uppercase">
+                                                    Fecha
+                                                </th>
+                                                <th className="px-6 py-4 text-left text-[10px] font-black tracking-widest text-muted-foreground uppercase">
+                                                    Cliente / Venta
+                                                </th>
+                                                <th className="px-6 py-4 text-right text-[10px] font-black tracking-widest text-muted-foreground uppercase">
+                                                    Monto
+                                                </th>
+                                                <th className="px-6 py-4 text-center text-[10px] font-black tracking-widest text-muted-foreground uppercase">
+                                                    Tasa
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                                            {filteredPayments.map((payment) => (
+                                                <tr
+                                                    key={payment.id}
+                                                    className="group transition-colors hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30"
+                                                >
+                                                    <td className="px-6 py-4">
+                                                        <div className="font-bold text-zinc-900 dark:text-zinc-100">
+                                                            {new Date(
+                                                                payment.created_at,
+                                                            ).toLocaleDateString()}
+                                                        </div>
+                                                        <div className="text-[10px] text-muted-foreground uppercase">
+                                                            {new Date(
+                                                                payment.created_at,
+                                                            ).toLocaleTimeString(
+                                                                [],
+                                                                {
+                                                                    hour: '2-digit',
+                                                                    minute: '2-digit',
+                                                                },
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="font-black text-zinc-700 dark:text-zinc-300">
+                                                            {payment.sale.customer
+                                                                ?.name ||
+                                                                'Cliente Eventual'}
+                                                        </div>
+                                                        <div className="text-[10px] font-bold text-zinc-400">
+                                                            VENTA #
+                                                            {payment.sale_id}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right">
+                                                        <span className="font-mono text-lg font-black text-emerald-600 dark:text-emerald-400">
+                                                            +{' '}
+                                                            {formatCurrency(
+                                                                payment.amount,
+                                                                payment.currency,
+                                                            )}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <Badge
+                                                            variant="outline"
+                                                            className="text-[10px] font-mono"
+                                                        >
+                                                            1 USD ={' '}
+                                                            {
+                                                                payment.exchange_rate
+                                                            }{' '}
+                                                            {payment.currency}
+                                                        </Badge>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {filteredPayments.length === 0 && (
+                                                <tr>
+                                                    <td
+                                                        colSpan={4}
+                                                        className="p-16 text-center text-muted-foreground italic"
+                                                    >
+                                                        No hay pagos registrados
+                                                        aún.
                                                     </td>
                                                 </tr>
                                             )}

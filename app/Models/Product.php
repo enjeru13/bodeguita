@@ -22,6 +22,6 @@ class Product extends Model
     // Este es el "Accessor" que crea el campo virtual
     public function getPurchasePriceAttribute()
     {
-        return $this->attributes['cost_price'];
+        return $this->attributes['cost_price'] ?? 0;
     }
 }

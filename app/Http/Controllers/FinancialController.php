@@ -15,70 +15,88 @@ class FinancialController extends Controller
 {
     public function index()
     {
-        $total_usd = (float) Sale::sum('total_usd');
-        $total_cop = (float) Sale::sum('total_cop');
-        $total_ves = (float) Sale::sum('total_ves');
-        $today_usd = (float) Sale::whereDate('created_at', today())->sum('total_usd');
-        $today_cop = (float) Sale::whereDate('created_at', today())->sum('total_cop');
-        $today_ves = (float) Sale::whereDate('created_at', today())->sum('total_ves');
-
-        $total_paid_cop = (float) Sale::sum('paid_amount_cop');
-        $total_paid_usd = (float) Sale::sum('paid_amount_usd');
-        $total_debt_cop = (float) Sale::where('status', 'pending')->get()->sum(fn($s) => $s->total_cop - $s->paid_amount_cop);
-        $total_debt_usd = (float) Sale::where('status', 'pending')->get()->sum(fn($s) => $s->total_usd - $s->paid_amount_usd);
-
         $cop_rate = (float) (ExchangeRate::where('currency_code', 'COP')->first()?->rate ?? 3650);
         $ves_rate = (float) (ExchangeRate::where('currency_code', 'VES')->first()?->rate ?? 520);
 
-        if ($total_cop == 0 && $total_usd > 0)
-            $total_cop = $total_usd * $cop_rate;
-        if ($today_cop == 0 && $today_usd > 0)
-            $today_cop = $today_usd * $cop_rate;
-        if ($total_ves == 0 && $total_usd > 0)
-            $total_ves = $total_usd * $ves_rate;
-        if ($today_ves == 0 && $today_usd > 0)
-            $today_ves = $today_usd * $ves_rate;
+        // Optimizamos la carga de ventas: solo las últimas 100 para el historial rápido
+        $sales = Sale::with(['customer', 'items.product', 'payments'])
+            ->latest()
+            ->take(100)
+                ->get();
+
+        // Totales Generales con SQL para máxima velocidad
+        $totals = Sale::selectRaw('
+            SUM(total_usd) as total_usd,
+            SUM(total_ves) as total_ves,
+            SUM(total_cop) as total_cop,
+            SUM(paid_amount_usd) as total_paid_usd,
+            SUM(paid_amount_cop) as total_paid_cop,
+            COUNT(*) as total_sales
+        ')->first();
+
+        // Totales de Hoy
+        $todayTotals = Sale::whereDate('created_at', today())->selectRaw('
+            COUNT(*) as today_sales,
+            SUM(total_usd) as today_total_usd,
+            SUM(total_ves) as today_total_ves,
+            SUM(total_cop) as today_total_cop
+        ')->first();
+
+        // Deudas (solo ventas pending)
+        $debtTotals = Sale::where('status', 'pending')->selectRaw('
+            SUM(total_usd - paid_amount_usd) as total_debt_usd,
+            SUM(total_cop - paid_amount_cop) as total_debt_cop
+        ')->first();
+
+        $lowStockProducts = Product::where('stock', '<=', 10)->get();
+
+        $summary = [
+            'total_usd' => (float) ($totals->total_usd ?? 0),
+            'total_cop' => (float) ($totals->total_cop ?? 0),
+            'total_ves' => (float) ($totals->total_ves ?? 0),
+            'total_sales' => (int) ($totals->total_sales ?? 0),
+            'today_sales' => (int) ($todayTotals->today_sales ?? 0),
+            'today_total_usd' => (float) ($todayTotals->today_total_usd ?? 0),
+            'today_total_cop' => (float) ($todayTotals->today_total_cop ?? 0),
+            'today_total_ves' => (float) ($todayTotals->today_total_ves ?? 0),
+            'total_paid_cop' => (float) ($totals->total_paid_cop ?? 0),
+            'total_paid_usd' => (float) ($totals->total_paid_usd ?? 0),
+            'total_debt_cop' => (float) ($debtTotals->total_debt_cop ?? 0),
+            'total_debt_usd' => (float) ($debtTotals->total_debt_usd ?? 0),
+            'net_worth_cop' => (float) (($totals->total_paid_cop ?? 0) + ($debtTotals->total_debt_cop ?? 0)),
+            'low_stock_count' => $lowStockProducts->count(),
+            'low_stock_products' => $lowStockProducts,
+        ];
 
         return Inertia::render('financial/index', [
-            'sales' => Sale::with(['customer', 'items.product'])->latest()->get()->map(function ($sale) use ($cop_rate, $ves_rate) {
-                if ($sale->total_cop == 0 && $sale->total_usd > 0) {
-                    $sale->total_cop = $sale->total_usd * $cop_rate;
-                }
-                if ($sale->total_ves == 0 && $sale->total_usd > 0) {
-                    $sale->total_ves = $sale->total_usd * $ves_rate;
-                }
-                return $sale;
-            }),
+            'sales' => $sales,
             'exchangeRates' => ExchangeRate::all(),
-            'summary' => [
-                'total_usd' => $total_usd,
-                'total_cop' => $total_cop,
-                'total_ves' => $total_ves,
-                'total_sales' => Sale::count(),
-                'today_sales' => Sale::whereDate('created_at', today())->count(),
-                'today_total_usd' => $today_usd,
-                'today_total_cop' => $today_cop,
-                'today_total_ves' => $today_ves,
-                'total_paid_cop' => $total_paid_cop,
-                'total_paid_usd' => $total_paid_usd,
-                'total_debt_cop' => $total_debt_cop,
-                'total_debt_usd' => $total_debt_usd,
-                'net_worth_cop' => $total_paid_cop + $total_debt_cop,
-            ],
+            'summary' => $summary,
             'debtors' => Sale::where('status', 'pending')
+                ->selectRaw('
+                    customer_id,
+                    SUM(total_usd - paid_amount_usd) as total_debt_usd,
+                    COUNT(*) as sale_count,
+                    MAX(exchange_rate_cop) as last_rate_cop
+                ')
+                ->groupBy('customer_id')
                 ->with('customer')
                 ->get()
-                ->groupBy('customer_id')
-                ->map(function ($sales) {
-                    $customer = $sales->first()->customer;
+                ->map(function ($d) use ($cop_rate) {
                     return [
-                        'customer_id' => $customer->id ?? 0,
-                        'customer_name' => $customer->name ?? 'Cliente Eventual',
-                        'total_debt_cop' => (float) $sales->sum(fn($s) => $s->total_cop - $s->paid_amount_cop),
-                        'total_debt_usd' => (float) $sales->sum(fn($s) => $s->total_usd - $s->paid_amount_usd),
-                        'sale_count' => $sales->count(),
+                        'customer_id' => $d->customer_id ?? 0,
+                        'customer_name' => $d->customer?->name ?? 'Cliente Eventual',
+                        'total_debt_usd' => (float) $d->total_debt_usd,
+                        'total_debt_cop' => (float) ($d->total_debt_usd * ($d->last_rate_cop ?: $cop_rate)),
+                        'sale_count' => $d->sale_count,
                     ];
-                })->values()
+                })->values(),
+            'recentPayments' => \App\Models\Payment::with('sale.customer')->latest()->take(50)->get(),
+            'chartData' => Sale::where('created_at', '>=', now()->subDays(14))
+                ->selectRaw('DATE(created_at) as date, SUM(total_usd) as total_usd, SUM(total_cop) as total_cop')
+                ->groupBy('date')
+                ->orderBy('date', 'asc')
+                ->get()
         ]);
     }
 
