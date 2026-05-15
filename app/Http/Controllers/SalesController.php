@@ -19,7 +19,11 @@ class SalesController extends Controller
         return Inertia::render('pos/index', [
             'products' => Product::where('stock', '>', 0)->get(),
             'customers' => Customer::all(),
-            'exchangeRates' => ExchangeRate::all()->pluck('rate', 'currency_code')
+            'exchangeRates' => ExchangeRate::all()->pluck('rate', 'currency_code'),
+            'pendingOrders' => Sale::with(['customer', 'items.product'])
+                ->where('status', 'order_pending')
+                ->latest()
+                ->get()
         ]);
     }
 
@@ -178,9 +182,15 @@ class SalesController extends Controller
             'exchange_rate_ves' => 'required|numeric',
             'exchange_rate_cop' => 'required|numeric',
             'status' => 'nullable|string',
+            'order_id' => 'nullable|exists:sales,id',
         ]);
 
         return DB::transaction(function () use ($validated) {
+            // Si viene de un pedido online, lo eliminamos para que no quede duplicado
+            if (!empty($validated['order_id'])) {
+                Sale::where('id', $validated['order_id'])->delete();
+            }
+
             $sale = Sale::create([
                 'customer_id' => $validated['customer_id'],
                 'total_usd' => $validated['total_usd'],
@@ -238,5 +248,17 @@ class SalesController extends Controller
 
             return redirect()->back()->with('success', 'Venta procesada correctamente.');
         });
+    }
+
+    public function rejectOrder(Sale $sale)
+    {
+        if ($sale->status !== 'order_pending') {
+            return back()->with('error', 'Solo se pueden rechazar pedidos pendientes.');
+        }
+
+        $sale->items()->delete();
+        $sale->delete();
+
+        return back()->with('success', 'Pedido rechazado y eliminado.');
     }
 }

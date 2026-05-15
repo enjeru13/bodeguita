@@ -21,6 +21,9 @@ return Application::configure(basePath: dirname(__DIR__))
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
         ]);
+        $middleware->alias([
+            'client.auth' => \App\Http\Middleware\ClientAuth::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

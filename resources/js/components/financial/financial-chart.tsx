@@ -1,3 +1,6 @@
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { TrendingUp } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import {
     Area,
     AreaChart,
@@ -7,9 +10,6 @@ import {
     XAxis,
     YAxis,
 } from 'recharts';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { TrendingUp } from 'lucide-react';
-import { useEffect, useState } from 'react';
 
 interface ChartData {
     date: string;
@@ -37,9 +37,10 @@ export function FinancialChart({ data }: Props) {
         }),
     }));
 
-    if (!isMounted) return (
-        <Card className="h-[400px] w-full animate-pulse border-none bg-white shadow-xl dark:bg-zinc-900" />
-    );
+    if (!isMounted)
+        return (
+            <Card className="h-[400px] w-full animate-pulse border-none bg-white shadow-xl dark:bg-zinc-900" />
+        );
 
     return (
         <Card className="overflow-hidden border-none bg-white shadow-xl dark:bg-zinc-900">
@@ -64,9 +65,23 @@ export function FinancialChart({ data }: Props) {
                             margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
                         >
                             <defs>
-                                <linearGradient id="colorUsd" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                                <linearGradient
+                                    id="colorUsd"
+                                    x1="0"
+                                    y1="0"
+                                    x2="0"
+                                    y2="1"
+                                >
+                                    <stop
+                                        offset="5%"
+                                        stopColor="#6366f1"
+                                        stopOpacity={0.3}
+                                    />
+                                    <stop
+                                        offset="95%"
+                                        stopColor="#6366f1"
+                                        stopOpacity={0}
+                                    />
                                 </linearGradient>
                             </defs>
                             <CartesianGrid
@@ -79,13 +94,21 @@ export function FinancialChart({ data }: Props) {
                                 dataKey="displayDate"
                                 axisLine={false}
                                 tickLine={false}
-                                tick={{ fontSize: 10, fontWeight: 700, fill: '#a1a1aa' }}
+                                tick={{
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                    fill: '#a1a1aa',
+                                }}
                                 dy={10}
                             />
                             <YAxis
                                 axisLine={false}
                                 tickLine={false}
-                                tick={{ fontSize: 10, fontWeight: 700, fill: '#a1a1aa' }}
+                                tick={{
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                    fill: '#a1a1aa',
+                                }}
                                 tickFormatter={(value) => `$${value}`}
                             />
                             <Tooltip
@@ -93,7 +116,8 @@ export function FinancialChart({ data }: Props) {
                                     backgroundColor: 'rgba(255, 255, 255, 0.8)',
                                     borderRadius: '12px',
                                     border: 'none',
-                                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                                    boxShadow:
+                                        '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
                                     backdropFilter: 'blur(4px)',
                                 }}
                                 itemStyle={{
@@ -124,16 +148,30 @@ export function FinancialChart({ data }: Props) {
 
                 <div className="mt-6 flex items-center justify-around rounded-2xl bg-zinc-50 p-4 dark:bg-zinc-800/50">
                     <div className="text-center">
-                        <p className="text-[10px] font-black tracking-widest text-zinc-400 uppercase">Día más alto</p>
+                        <p className="text-[10px] font-black tracking-widest text-zinc-400 uppercase">
+                            Día más alto
+                        </p>
                         <p className="text-lg font-black text-zinc-900 dark:text-zinc-100">
-                            ${Math.max(...data.map(d => d.total_usd), 0).toFixed(2)}
+                            $
+                            {Math.max(
+                                ...data.map((d) => d.total_usd),
+                                0,
+                            ).toFixed(2)}
                         </p>
                     </div>
                     <div className="h-8 w-px bg-zinc-200 dark:bg-zinc-700" />
                     <div className="text-center">
-                        <p className="text-[10px] font-black tracking-widest text-zinc-400 uppercase">Promedio diario</p>
+                        <p className="text-[10px] font-black tracking-widest text-zinc-400 uppercase">
+                            Promedio diario
+                        </p>
                         <p className="text-lg font-black text-indigo-600 dark:text-indigo-400">
-                            ${(data.reduce((acc, curr) => acc + Number(curr.total_usd), 0) / (data.length || 1)).toFixed(2)}
+                            $
+                            {(
+                                data.reduce(
+                                    (acc, curr) => acc + Number(curr.total_usd),
+                                    0,
+                                ) / (data.length || 1)
+                            ).toFixed(2)}
                         </p>
                     </div>
                 </div>

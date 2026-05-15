@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(php artisan db:show 2>&1 | Select-Object -First 20)",
+      "PowerShell(php artisan db:show 2>&1 | Select-Object -First 10)",
+      "Bash(Get-Content \"C:\\\\xampp\\\\mysql\\\\data\\\\mysql_error.log\" -Tail 30)",
+      "Read(//c/xampp/mysql/data/**)",
+      "Bash(Get-Content *)",
+      "PowerShell(Head 30 *)",
+      "PowerShell(cmd /c \"dir C:\\\\xampp\\\\mysql\\\\data\\\\ /a\")",
+      "PowerShell(netstat *)",
+      "PowerShell(cmd /c \"dir C:\\\\xampp\\\\mysql\\\\data\\\\bodeguita\\\\ /a\")",
+      "PowerShell(cmd /c \"dir C:\\\\xampp\\\\mysql\\\\backup\\\\ /a 2>&1\")",
+      "PowerShell(& \"C:\\\\xampp\\\\mysql\\\\bin\\\\mysql.exe\" -u root -h 127.0.0.1 -P 3306 -e \"SELECT 1;\" 2>&1)",
+      "PowerShell(cmd /c \"dir C:\\\\Users\\\\Personal\\\\Desktop\\\\bodeguita_backup\\\\ /a\")"
+    ]
+  }
+}
