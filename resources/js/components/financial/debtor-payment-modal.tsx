@@ -75,11 +75,15 @@ export function DebtorPaymentModal({
     };
 
     const handlePayFull = () => {
-        const fullAmount =
-            data.currency === 'COP'
-                ? debtor?.total_debt_cop
-                : debtor?.total_debt_usd;
-        setData('amount', fullAmount?.toString() || '');
+        if (!debtor) return;
+        if (data.currency === 'COP') {
+            setData('amount', Math.round(debtor.total_debt_cop).toString());
+        } else if (data.currency === 'USD') {
+            setData('amount', Number(debtor.total_debt_usd).toFixed(2));
+        } else {
+            // VES: convertir desde USD usando la tasa promedio guardada
+            setData('amount', '');
+        }
     };
 
     const formatCurrency = (amount: number, currency: 'COP' | 'USD') => {

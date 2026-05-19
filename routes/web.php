@@ -38,4 +38,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('notes/{note}', [\App\Http\Controllers\NoteController::class, 'destroy'])->name('notes.destroy');
 });
 
+// Portal del Cliente
+use App\Http\Controllers\ClientPortalController;
+
+Route::get('client/login', [ClientPortalController::class, 'showLogin'])->name('client.login');
+Route::post('client/login', [ClientPortalController::class, 'login']);
+Route::post('client/logout', [ClientPortalController::class, 'logout'])->name('client.logout');
+
+Route::middleware(['client.auth'])->group(function () {
+    Route::get('client/dashboard', [ClientPortalController::class, 'dashboard'])->name('client.dashboard');
+    Route::post('client/order', [ClientPortalController::class, 'storeOrder'])->name('client.order');
+    Route::delete('sales/{sale}/reject', [\App\Http\Controllers\SalesController::class, 'rejectOrder'])->name('sales.reject-order');
+});
+
 require __DIR__ . '/settings.php';

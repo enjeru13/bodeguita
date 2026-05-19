@@ -16,6 +16,7 @@ import {
     TrendingUp,
     Users,
     Wallet,
+    Share2,
 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -197,6 +198,12 @@ export default function FinancialIndex({
         // Descargar Archivo
         XLSX.writeFile(wb, `BODEGUITA_REPORTE_${new Date().toISOString().split('T')[0]}.xlsx`);
         toast.success('Reporte Excel generado con éxito');
+    };
+
+    const copyClientLink = () => {
+        const url = `${window.location.origin}/client/login`;
+        navigator.clipboard.writeText(url);
+        toast.success('Link del portal copiado. ¡Envíalo por WhatsApp!');
     };
 
     const handleOpenPayment = (sale: Sale) => {
@@ -539,6 +546,15 @@ export default function FinancialIndex({
                              >
                                 <Download className="h-3.5 w-3.5" />
                                 Exportar Excel
+                             </Button>
+                             <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={copyClientLink}
+                                className="h-9 gap-2 rounded-xl border-none bg-indigo-50 px-4 text-[10px] font-black tracking-widest uppercase shadow-sm hover:bg-indigo-100 hover:text-indigo-600 dark:bg-indigo-950/20"
+                             >
+                                <Share2 className="h-3.5 w-3.5" />
+                                Link Portal Clientes
                              </Button>
                         </div>
                     </div>

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router } from '@inertiajs/react';
@@ -7,10 +8,13 @@ import {
     ChevronRight,
     Clock,
     Minus,
+    PackageSearch,
     Plus,
     Search,
     ShoppingCart,
     Trash2,
+    UserCheck,
+    X,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -70,10 +74,12 @@ export default function PosIndex({
     products,
     customers,
     exchangeRates,
+    pendingOrders = [],
 }: {
     products: Product[];
     customers: Customer[];
     exchangeRates: ExchangeRates;
+    pendingOrders?: any[];
 }) {
     const [searchTerm, setSearchTerm] = useState('');
     const [cart, setCart] = useState<CartItem[]>([]);
@@ -84,6 +90,8 @@ export default function PosIndex({
     const [paidAmount, setPaidAmount] = useState<string>('0');
     const [showPaymentOptions, setShowPaymentOptions] = useState(false);
     const [isCartOpen, setIsCartOpen] = useState(false);
+    const [isOrdersModalOpen, setIsOrdersModalOpen] = useState(false);
+    const [activeOrderId, setActiveOrderId] = useState<number | null>(null);
 
     const filteredProducts = products.filter(
         (product) =>
@@ -115,6 +123,34 @@ export default function PosIndex({
         setCart((prevCart) => prevCart.filter((item) => item.id !== productId));
     };
 
+    const loadOrder = (order: any) => {
+        // Convertir items del pedido al formato del carrito
+        const newCart = order.items.map((item: any) => ({
+            ...item.product,
+            quantity: item.quantity,
+        }));
+
+        setCart(newCart);
+        setSelectedCustomerId(order.customer_id.toString());
+        setActiveOrderId(order.id);
+        setIsOrdersModalOpen(false);
+        setIsCartOpen(true);
+        toast.success(`Pedido de ${order.customer.name} cargado correctamente`);
+    };
+
+    const rejectOrder = (orderId: number) => {
+        if (
+            !confirm(
+                '¿Estás seguro de rechazar este pedido? Se eliminará permanentemente.',
+            )
+        )
+            return;
+
+        router.delete(`/sales/${orderId}/reject`, {
+            onSuccess: () => toast.success('Pedido rechazado'),
+        });
+    };
+
     const updateQuantity = (productId: number, delta: number) => {
         setCart((prevCart) =>
             prevCart.map((item) => {
@@ -139,7 +175,7 @@ export default function PosIndex({
 
     const totals = useMemo(() => {
         const usd = cart.reduce(
-            (acc, item) => acc + item.selling_price * item.quantity,
+            (acc, item) => acc + Number(item.selling_price) * item.quantity,
             0,
         );
         // Calculamos el COP sumando los subtotales redondeados de cada item para evitar inconsistencias visuales
@@ -181,18 +217,18 @@ export default function PosIndex({
             total_ves: totals.ves,
             total_cop: totals.cop,
             paid_amount_cop: isCredit
-                ? parseFloat(paidAmount || '0')
+                ? Math.round(parseFloat(paidAmount || '0'))
                 : totals.cop,
             paid_amount_usd: isCredit
-                ? parseFloat(paidAmount || '0') / (exchangeRates.COP || 1)
+                ? Math.round((parseFloat(paidAmount || '0') / (exchangeRates.COP || 1)) * 100) / 100
                 : totals.usd,
             paid_amount_ves: isCredit
-                ? (parseFloat(paidAmount || '0') / (exchangeRates.COP || 1)) *
-                  (exchangeRates.VES || 0)
+                ? Math.round((parseFloat(paidAmount || '0') / (exchangeRates.COP || 1)) * (exchangeRates.VES || 0) * 100) / 100
                 : totals.ves,
             exchange_rate_ves: exchangeRates.VES || 0,
             exchange_rate_cop: exchangeRates.COP || 0,
             status: isCredit ? 'pending' : 'completed',
+            order_id: activeOrderId,
         };
 
         router.post('/pos', payload, {
@@ -201,6 +237,7 @@ export default function PosIndex({
                 setSelectedCustomerId('0');
                 setIsCredit(false);
                 setPaidAmount('0');
+                setActiveOrderId(null);
                 toast.success('Venta completada con éxito');
                 setIsProcessing(false);
             },
@@ -568,34 +605,57 @@ export default function PosIndex({
             <div className="flex h-[calc(100vh-65px)] flex-row gap-0 overflow-hidden bg-zinc-50 dark:bg-zinc-950">
                 <div className="flex flex-1 flex-col gap-6 overflow-hidden p-4 md:p-6 lg:p-8">
                     <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-                        <div className="relative max-w-md flex-1">
-                            <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-                            <Input
-                                placeholder="Buscar producto por nombre o código..."
-                                className="h-11 rounded-xl border-none bg-white pl-10 font-medium shadow-sm transition-all focus-visible:ring-indigo-500/30 dark:bg-zinc-900"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
-                        </div>
-                        <div className="flex gap-3 text-xs">
-                            <div className="flex items-center gap-2 rounded-lg border border-zinc-100 bg-white px-3 py-1.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-                                <span className="text-[10px] font-black tracking-widest text-blue-500 uppercase">
-                                    VES:
-                                </span>
-                                <span className="font-mono font-bold text-zinc-700 dark:text-zinc-300">
-                                    Bs.{' '}
-                                    {Number(exchangeRates.VES || 0).toFixed(2)}
-                                </span>
+                        <div className="flex flex-1 items-center gap-4">
+                            <h1 className="hidden text-xl font-black tracking-tight text-zinc-900 lg:block dark:text-zinc-50">
+                                Terminal POS
+                            </h1>
+                            <div className="relative max-w-md flex-1">
+                                <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                                <Input
+                                    placeholder="Buscar producto..."
+                                    className="h-11 rounded-xl border-none bg-white pl-10 font-medium shadow-sm transition-all focus-visible:ring-indigo-500/30 dark:bg-zinc-900"
+                                    value={searchTerm}
+                                    onChange={(e) =>
+                                        setSearchTerm(e.target.value)
+                                    }
+                                />
                             </div>
-                            <div className="flex items-center gap-2 rounded-lg border border-zinc-100 bg-white px-3 py-1.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-                                <span className="text-[10px] font-black tracking-widest text-emerald-500 uppercase">
-                                    COP:
-                                </span>
-                                <span className="font-mono font-bold text-zinc-700 dark:text-zinc-300">
-                                    {Number(
-                                        exchangeRates.COP || 0,
-                                    ).toLocaleString()}
-                                </span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            {pendingOrders.length > 0 && (
+                                <Button
+                                    variant="outline"
+                                    className="h-10 gap-2 rounded-xl border-indigo-200 bg-indigo-50 px-4 text-[10px] font-black tracking-widest text-indigo-700 uppercase hover:bg-indigo-100 dark:border-indigo-900/50 dark:bg-indigo-950/20 dark:text-indigo-400"
+                                    onClick={() => setIsOrdersModalOpen(true)}
+                                >
+                                    <PackageSearch className="h-4 w-4" />
+                                    <span className="hidden sm:inline">
+                                        Pedidos Online
+                                    </span>
+                                    <Badge className="h-5 min-w-5 border-none bg-indigo-600 p-0 text-[10px] font-black text-white">
+                                        {pendingOrders.length}
+                                    </Badge>
+                                </Button>
+                            )}
+                            <div className="hidden gap-3 text-xs sm:flex">
+                                <div className="flex items-center gap-2 rounded-lg border border-zinc-100 bg-white px-3 py-1.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+                                    <span className="text-[10px] font-black tracking-widest text-blue-500 uppercase">
+                                        VES:
+                                    </span>
+                                    <span className="font-mono font-bold">
+                                        {Number(exchangeRates.VES).toFixed(2)}
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-2 rounded-lg border border-zinc-100 bg-white px-3 py-1.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+                                    <span className="text-[10px] font-black tracking-widest text-emerald-500 uppercase">
+                                        COP:
+                                    </span>
+                                    <span className="font-mono font-bold">
+                                        {Number(
+                                            exchangeRates.COP,
+                                        ).toLocaleString()}
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -725,6 +785,96 @@ export default function PosIndex({
                     </div>
                 )}
             </div>
+
+            <Sheet open={isOrdersModalOpen} onOpenChange={setIsOrdersModalOpen}>
+                <SheetContent
+                    side="left"
+                    className="w-full p-0 sm:max-w-md dark:bg-zinc-900"
+                >
+                    <SheetHeader className="p-6 pb-2">
+                        <SheetTitle className="text-xl font-black tracking-tight uppercase">
+                            Pedidos en Línea
+                        </SheetTitle>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase">
+                            Selecciona un pedido para cargarlo al POS
+                        </p>
+                    </SheetHeader>
+
+                    <div className="flex-1 space-y-4 overflow-y-auto p-6">
+                        {pendingOrders.map((order) => (
+                            <Card
+                                key={order.id}
+                                className="overflow-hidden border-none bg-zinc-50 transition-all hover:bg-white dark:bg-zinc-800/50 dark:hover:bg-zinc-800"
+                            >
+                                <CardContent className="p-4">
+                                    <div className="mb-3 flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-white">
+                                                <UserCheck className="h-4 w-4" />
+                                            </div>
+                                            <span className="text-sm font-black uppercase">
+                                                {order.customer.name}
+                                            </span>
+                                        </div>
+                                        <Badge className="bg-orange-100 text-[8px] font-black text-orange-700 uppercase">
+                                            NUEVO
+                                        </Badge>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        {order.items.map((item: any) => (
+                                            <div
+                                                key={item.id}
+                                                className="flex justify-between text-[11px] font-bold text-muted-foreground"
+                                            >
+                                                <span>
+                                                    {item.quantity}x{' '}
+                                                    {item.product.name}
+                                                </span>
+                                                <span className="font-mono">
+                                                    {Math.round(
+                                                        Number(item.price_usd) *
+                                                            item.quantity *
+                                                            (exchangeRates.COP ||
+                                                                0),
+                                                    ).toLocaleString()}{' '}
+                                                    COP
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="mt-4 flex items-center justify-between border-t border-dashed border-zinc-200 pt-4 dark:border-zinc-700">
+                                        <div className="text-lg font-black text-indigo-600">
+                                            {Math.round(
+                                                Number(order.total_cop),
+                                            ).toLocaleString()}{' '}
+                                            COP
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                onClick={() =>
+                                                    rejectOrder(order.id)
+                                                }
+                                                className="h-9 w-9 rounded-xl p-0 text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/20"
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                                size="sm"
+                                                onClick={() => loadOrder(order)}
+                                                className="rounded-xl bg-indigo-600 text-[10px] font-black uppercase"
+                                            >
+                                                CARGAR AL POS
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
+                </SheetContent>
+            </Sheet>
         </AppLayout>
     );
 }

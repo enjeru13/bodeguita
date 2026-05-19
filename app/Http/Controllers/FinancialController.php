@@ -76,18 +76,18 @@ class FinancialController extends Controller
                 ->selectRaw('
                     customer_id,
                     SUM(total_usd - paid_amount_usd) as total_debt_usd,
-                    COUNT(*) as sale_count,
-                    MAX(exchange_rate_cop) as last_rate_cop
+                    SUM(total_cop - paid_amount_cop) as total_debt_cop,
+                    COUNT(*) as sale_count
                 ')
                 ->groupBy('customer_id')
                 ->with('customer')
                 ->get()
-                ->map(function ($d) use ($cop_rate) {
+                ->map(function ($d) {
                     return [
                         'customer_id' => $d->customer_id ?? 0,
                         'customer_name' => $d->customer?->name ?? 'Cliente Eventual',
-                        'total_debt_usd' => (float) $d->total_debt_usd,
-                        'total_debt_cop' => (float) ($d->total_debt_usd * ($d->last_rate_cop ?: $cop_rate)),
+                        'total_debt_usd' => round((float) $d->total_debt_usd, 2),
+                        'total_debt_cop' => round((float) $d->total_debt_cop),
                         'sale_count' => $d->sale_count,
                     ];
                 })->values(),

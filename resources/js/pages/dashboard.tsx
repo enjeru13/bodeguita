@@ -15,8 +15,10 @@ import {
     ShoppingCart,
     TrendingUp,
     Users,
+    Share2,
 } from 'lucide-react';
 import NotesSection from '@/components/notes-section';
+import { toast } from 'sonner';
 
 interface Product {
     id: number;
@@ -82,6 +84,12 @@ export default function Dashboard({
     exchange_rates,
     notes,
 }: DashboardProps) {
+    const copyClientLink = () => {
+        const url = `http://192.168.4.23:217/client/login`;
+        navigator.clipboard.writeText(url);
+        toast.success('Link del portal copiado. ¡Envíalo por WhatsApp!');
+    };
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Resumen General" />
@@ -412,6 +420,23 @@ export default function Dashboard({
                                     <div className="flex flex-col items-start leading-tight">
                                         <span className="text-base font-black tracking-tight text-zinc-900 dark:text-zinc-100">CATÁLOGO</span>
                                         <span className="text-[10px] font-bold tracking-widest text-zinc-500 uppercase mt-1">Precios COP</span>
+                                    </div>
+                                </div>
+                            </Button>
+
+                            {/* Botón LINK PORTAL */}
+                            <Button
+                                variant="outline"
+                                className="group relative min-h-[110px] flex-1 overflow-hidden rounded-2xl border-2 border-indigo-100 bg-indigo-50/30 p-0 shadow-sm transition-all hover:border-indigo-300 hover:bg-white active:scale-[0.98] dark:border-indigo-900/30 dark:bg-indigo-950/20 dark:hover:bg-indigo-900/40"
+                                onClick={copyClientLink}
+                            >
+                                <div className="flex h-full w-full items-center justify-center gap-5">
+                                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white transition-transform group-hover:scale-110">
+                                        <Share2 className="h-6 w-6" />
+                                    </div>
+                                    <div className="flex flex-col items-start leading-tight">
+                                        <span className="text-base font-black tracking-tight text-indigo-700 dark:text-indigo-400">LINK PORTAL</span>
+                                        <span className="text-[10px] font-bold tracking-widest text-indigo-600/70 uppercase mt-1">Para Clientes</span>
                                     </div>
                                 </div>
                             </Button>

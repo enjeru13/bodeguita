@@ -19,7 +19,11 @@ class SalesController extends Controller
         return Inertia::render('pos/index', [
             'products' => Product::where('stock', '>', 0)->get(),
             'customers' => Customer::all(),
-            'exchangeRates' => ExchangeRate::all()->pluck('rate', 'currency_code')
+            'exchangeRates' => ExchangeRate::all()->pluck('rate', 'currency_code'),
+            'pendingOrders' => Sale::with(['customer', 'items.product'])
+                ->where('status', 'order_pending')
+                ->latest()
+                ->get()
         ]);
     }
 
@@ -96,51 +100,52 @@ class SalesController extends Controller
 
         // Algoritmo de distribución inteligente
         foreach ($pendingSales as $sale) {
-            if ($remainingAmount <= 0) {
+            if ($remainingAmount <= 0.01) {
                 break;
             }
 
-            // Calcular el equivalente total pagado en USD actualmente
-            $currentPaidUSD = $sale->paid_amount_usd +
-                ($sale->paid_amount_cop / ($sale->exchange_rate_cop ?: 1)) +
-                ($sale->paid_amount_ves / ($sale->exchange_rate_ves ?: 1));
+            $paidField = 'paid_amount_' . strtolower($currency);
+            $rate = ($currency === 'COP') ? $sale->exchange_rate_cop :
+                    (($currency === 'VES') ? $sale->exchange_rate_ves : 1);
 
-            $debtUSD = $sale->total_usd - $currentPaidUSD;
+            // Usamos los montos almacenados en la moneda correspondiente
+            // para evitar discrepancias por redondeo en conversiones USD->moneda
+            if ($currency === 'COP') {
+                $debtInPaymentCurrency = $sale->total_cop - $sale->paid_amount_cop;
+            } elseif ($currency === 'VES') {
+                $debtInPaymentCurrency = $sale->total_ves - $sale->paid_amount_ves;
+            } else {
+                $currentPaidUSD = $sale->paid_amount_usd +
+                    ($sale->paid_amount_cop / ($sale->exchange_rate_cop ?: 1)) +
+                    ($sale->paid_amount_ves / ($sale->exchange_rate_ves ?: 1));
+                $debtInPaymentCurrency = $sale->total_usd - $currentPaidUSD;
+            }
 
-            if ($debtUSD <= 0.01) {
+            if ($debtInPaymentCurrency <= 0.01) {
                 continue; // Ya está saldada
             }
 
-            // Convertimos la deuda USD a la moneda del pago actual
-            // Usamos la tasa de la venta para mantener consistencia con los totales guardados
-            $rate = ($currency === 'COP') ? $sale->exchange_rate_cop : 
-                    (($currency === 'VES') ? $sale->exchange_rate_ves : 1);
-            
-            $debtInPaymentCurrency = $debtUSD * $rate;
-
             if ($remainingAmount >= ($debtInPaymentCurrency - 0.01)) {
-                // Pagar completamente esta deuda
-                $paidField = 'paid_amount_' . strtolower($currency);
-                $sale->$paidField += ($currency === 'COP') ? round($debtInPaymentCurrency) : $debtInPaymentCurrency;
-                $remainingAmount -= $debtInPaymentCurrency;
+                // Pago completo de esta venta
+                $amountForSale = $debtInPaymentCurrency;
+                $sale->$paidField += $amountForSale;
+                $remainingAmount -= $amountForSale;
 
                 $sale->status = 'completed';
-                // Sincronizamos totales para evitar residuos decimales
                 $sale->paid_amount_cop = $sale->total_cop;
                 $sale->paid_amount_usd = $sale->total_usd;
                 $sale->paid_amount_ves = $sale->total_ves;
                 $salesPaid++;
             } else {
                 // Pago parcial
-                $paidField = 'paid_amount_' . strtolower($currency);
-                $sale->$paidField += $remainingAmount;
+                $amountForSale = $remainingAmount;
+                $sale->$paidField += $amountForSale;
                 $remainingAmount = 0;
                 $salesPartiallyPaid++;
             }
 
-            // Registrar en el historial de pagos (Calculamos el delta pagado en este paso)
             $sale->payments()->create([
-                'amount' => $sale->$paidField - $sale->getOriginal($paidField),
+                'amount' => $amountForSale,
                 'currency' => $currency,
                 'exchange_rate' => $rate,
             ]);
@@ -178,9 +183,15 @@ class SalesController extends Controller
             'exchange_rate_ves' => 'required|numeric',
             'exchange_rate_cop' => 'required|numeric',
             'status' => 'nullable|string',
+            'order_id' => 'nullable|exists:sales,id',
         ]);
 
         return DB::transaction(function () use ($validated) {
+            // Si viene de un pedido online, lo eliminamos para que no quede duplicado
+            if (!empty($validated['order_id'])) {
+                Sale::where('id', $validated['order_id'])->delete();
+            }
+
             $sale = Sale::create([
                 'customer_id' => $validated['customer_id'],
                 'total_usd' => $validated['total_usd'],
@@ -238,5 +249,17 @@ class SalesController extends Controller
 
             return redirect()->back()->with('success', 'Venta procesada correctamente.');
         });
+    }
+
+    public function rejectOrder(Sale $sale)
+    {
+        if ($sale->status !== 'order_pending') {
+            return back()->with('error', 'Solo se pueden rechazar pedidos pendientes.');
+        }
+
+        $sale->items()->delete();
+        $sale->delete();
+
+        return back()->with('success', 'Pedido rechazado y eliminado.');
     }
 }
