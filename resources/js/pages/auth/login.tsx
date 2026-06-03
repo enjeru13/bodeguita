@@ -36,6 +36,12 @@ export default function Login({
                 {({ processing, errors }) => (
                     <>
                         <div className="grid gap-5">
+                            {/* Banner demo */}
+                            <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-xs text-indigo-700 dark:border-indigo-900/50 dark:bg-indigo-950/30 dark:text-indigo-300">
+                                <span className="font-black uppercase tracking-wider">Demo</span>
+                                {' — '}credenciales pre-cargadas, solo presiona <span className="font-bold">Iniciar Sesión</span>.
+                            </div>
+
                             <div className="grid gap-2">
                                 <Label htmlFor="email">
                                     Correo Electrónico
@@ -50,8 +56,8 @@ export default function Login({
                                         autoFocus
                                         tabIndex={1}
                                         autoComplete="email"
-                                        placeholder="admin@empresa.com"
-                                        className="pl-9" // Espacio para el icono
+                                        defaultValue="demo@bodeguita.com"
+                                        className="pl-9"
                                     />
                                 </div>
                                 <InputError message={errors.email} />
@@ -60,7 +66,6 @@ export default function Login({
                             <div className="grid gap-2">
                                 <div className="flex items-center justify-between">
                                     <Label htmlFor="password">Contraseña</Label>
-                                    
                                 </div>
                                 <div className="relative">
                                     <Lock className="absolute top-2.5 left-3 h-4 w-4 text-muted-foreground" />
@@ -71,7 +76,7 @@ export default function Login({
                                         required
                                         tabIndex={2}
                                         autoComplete="current-password"
-                                        placeholder="••••••••"
+                                        defaultValue="demo1234"
                                         className="pl-9"
                                     />
                                 </div>
